@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "main": "index.mjs",
-  "description": "可视化工作流插件 - 支持拖拽创建自动化流程",
+  "description": "AI可视化工作流插件 - 创建自动化流程与定时任务",
   "author": "冷曦",
   "dependencies": {
     "napcat-types": "0.0.9"

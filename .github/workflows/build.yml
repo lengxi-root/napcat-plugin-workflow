@@ -53,25 +53,21 @@ jobs:
           cd release
           zip -r ../napcat-plugin-workflow.zip .
 
-      - name: Get version
-        id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Delete existing release
+      - name: Delete existing latest release
         continue-on-error: true
-        run: gh release delete v${{ steps.version.outputs.version }} --yes
+        run: gh release delete latest --yes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Delete existing tag
+      - name: Delete existing latest tag
         continue-on-error: true
-        run: git push origin :refs/tags/v${{ steps.version.outputs.version }}
+        run: git push origin :refs/tags/latest
 
-      - name: Create Release
+      - name: Create Latest Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
+          tag_name: latest
+          name: Latest Release
           files: napcat-plugin-workflow.zip
           generate_release_notes: true
           draft: false

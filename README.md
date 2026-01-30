@@ -14,12 +14,6 @@
 
 从 [Releases](../../releases) 下载最新版本，解压到 NapCat 插件目录即可。
 
-## 手动构建
-
-```bash
-pnpm install
-pnpm build
-```
 
 ## 交流群
 
