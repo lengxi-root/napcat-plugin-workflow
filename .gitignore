@@ -40,5 +40,3 @@ temp/
 # 测试覆盖率
 coverage/
 
-# 重复的 webui 目录（源码在 src/webui）
-webui/

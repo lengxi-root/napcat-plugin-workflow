@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可视化工作流</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: rgba(255, 255, 255, 0.4);
+      --bg-secondary: rgba(255, 255, 255, 0.6);
+      --bg-card: rgba(255, 255, 255, 0.5);
+      --bg-item: rgba(0, 0, 0, 0.03);
+      --text-primary: #1a1a1a;
+      --text-secondary: #666;
+      --text-muted: #999;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --accent-color: #5865F2;
+      --accent-light: rgba(88, 101, 242, 0.1);
+      --success-color: #17c964;
+      --warning-color: #f5a623;
+      --danger-color: #f31260;
+      --canvas-dot: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: rgba(0, 0, 0, 0.2);
+        --bg-secondary: rgba(0, 0, 0, 0.3);
+        --bg-card: rgba(255, 255, 255, 0.05);
+        --bg-item: rgba(255, 255, 255, 0.05);
+        --text-primary: #f5f5f5;
+        --text-secondary: #a1a1a1;
+        --text-muted: #666;
+        --border-color: rgba(255, 255, 255, 0.1);
+        --accent-light: rgba(88, 101, 242, 0.2);
+        --canvas-dot: #374151;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: transparent; min-height: 100vh; padding: 12px; color: var(--text-primary); }
+    
+    /* 头部 */
+    .header {
+      background: var(--bg-card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-radius: 14px; padding: 16px 20px; margin-bottom: 12px; border: 1px solid var(--border-color);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-icon { width: 42px; height: 42px; background: var(--accent-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--accent-color); }
+    .header-title h4 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+    .header-title p { font-size: 12px; color: var(--text-muted); }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-item); color: var(--text-primary); }
+    .btn:hover { background: var(--accent-light); border-color: var(--accent-color); }
+    .btn-primary { background: var(--accent-color); color: white; border-color: var(--accent-color); }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-success { background: var(--success-color); color: white; border-color: var(--success-color); }
+    .btn-danger { background: var(--danger-color); color: white; border-color: var(--danger-color); }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+    /* 主布局 */
+    .main-layout { display: flex; gap: 12px; height: calc(100vh - 110px); min-height: 500px; }
+    
+    /* 侧边栏 */
+    .sidebar {
+      width: 240px; background: var(--bg-card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-radius: 14px; border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+    }
+    .sidebar-section { padding: 12px; border-bottom: 1px solid var(--border-color); }
+    .sidebar-section:last-child { border-bottom: none; flex: 1; overflow-y: auto; }
+    .sidebar-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600; }
+    
+    /* 节点调色板 */
+    .node-item {
+      padding: 10px 12px; margin-bottom: 6px; background: var(--bg-item); border: 1px solid var(--border-color);
+      border-radius: 8px; cursor: grab; display: flex; align-items: center; gap: 10px; transition: all 0.2s; font-size: 12px;
+    }
+    .node-item:hover { border-color: var(--accent-color); background: var(--accent-light); }
+    .node-item i { font-size: 14px; width: 20px; text-align: center; }
+    .node-item.trigger i { color: var(--success-color); }
+    .node-item.condition i { color: var(--warning-color); }
+    .node-item.action i { color: var(--accent-color); }
+    
+    /* 工作流列表 */
+    .wf-item {
+      padding: 10px 12px; background: var(--bg-item); border: 1px solid var(--border-color);
+      border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s;
+    }
+    .wf-item:hover { border-color: var(--accent-color); }
+    .wf-item.active { border-color: var(--accent-color); background: var(--accent-light); border-left: 3px solid var(--accent-color); }
+    .wf-item .wf-name { font-weight: 600; font-size: 12px; margin-bottom: 3px; }
+    .wf-item .wf-trigger { font-size: 10px; color: var(--text-muted); }
+    .wf-item .wf-actions { margin-top: 6px; display: flex; gap: 4px; }
+    .wf-badge { padding: 2px 6px; border-radius: 4px; font-size: 9px; }
+    .wf-badge.on { background: rgba(23, 201, 100, 0.15); color: var(--success-color); }
+    .wf-badge.off { background: rgba(243, 18, 96, 0.15); color: var(--danger-color); }
+    
+    /* 画布 */
+    .canvas-container {
+      flex: 1; background: var(--bg-card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-radius: 14px; border: 1px solid var(--border-color); position: relative; overflow: hidden;
+    }
+    .canvas-inner {
+      width: 4000px; height: 3000px; position: relative;
+      background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px); background-size: 20px 20px;
+    }
+    
+    /* 工作流节点 */
+    .wf-node {
+      position: absolute; min-width: 160px; background: var(--bg-card); backdrop-filter: blur(8px);
+      border: 2px solid var(--border-color); border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: move; z-index: 10;
+    }
+    .wf-node.selected { border-color: var(--accent-color); box-shadow: 0 0 0 3px var(--accent-light); }
+    .wf-node.trigger { border-color: var(--success-color); }
+    .wf-node.condition { border-color: var(--warning-color); }
+    .wf-node.action { border-color: var(--accent-color); }
+    .wf-node.storage, .wf-node.global_storage { border-color: var(--danger-color); }
+    .wf-node.delay { border-color: var(--text-muted); }
+    .node-header { padding: 8px 10px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11px; }
+    .node-body { padding: 8px 10px; font-size: 10px; color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .node-port { width: 16px; height: 16px; background: var(--bg-card); border: 3px solid var(--text-muted); border-radius: 50%; position: absolute; cursor: pointer; z-index: 100; transition: all 0.15s; }
+    .node-port.input { top: 50%; left: -8px; transform: translateY(-50%); }
+    .node-port.output { top: 50%; right: -8px; transform: translateY(-50%); }
+    .node-port.output-1 { top: 35%; right: -8px; transform: translateY(-50%); }
+    .node-port.output-2 { top: 65%; right: -8px; transform: translateY(-50%); border-color: var(--danger-color); }
+    .node-port:hover { background: var(--accent-color); border-color: var(--accent-color); transform: translateY(-50%) scale(1.3); }
+    .node-port.waiting { background: var(--success-color); border-color: var(--success-color); animation: pulse 0.8s infinite; transform: translateY(-50%) scale(1.2); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .btn-del-node { position: absolute; top: -8px; right: -8px; width: 18px; height: 18px; border-radius: 50%; background: var(--danger-color); color: #fff; border: none; font-size: 10px; cursor: pointer; display: none; z-index: 30; }
+    .wf-node:hover .btn-del-node { display: flex; align-items: center; justify-content: center; }
+    .connection-line { stroke: var(--text-muted); stroke-width: 2; fill: none; }
+    
+    /* 模态框 */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: #ffffff; border-radius: 16px; border: 1px solid var(--border-color); width: 90%; max-width: 500px; max-height: 80vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .modal-box.lg { max-width: 700px; }
+    @media (prefers-color-scheme: dark) { .modal-box { background: #1f1f1f; } }
+    .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h5 { font-size: 14px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
+    .modal-body { padding: 20px; overflow-y: auto; max-height: 60vh; }
+    .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 8px; }
+    
+    /* 表单 */
+    .form-group { margin-bottom: 12px; }
+    .form-label { display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+    .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; background: var(--bg-item); color: var(--text-primary); }
+    .form-control:focus { outline: none; border-color: var(--accent-color); }
+    select.form-control { cursor: pointer; }
+    textarea.form-control { min-height: 80px; resize: vertical; }
+    
+    /* 表格 */
+    .table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .table th, .table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .table th { font-weight: 600; color: var(--text-muted); font-size: 10px; text-transform: uppercase; }
+    
+    /* Toast */
+    .toast { position: fixed; top: 20px; right: 20px; z-index: 9999; padding: 12px 16px; border-radius: 8px; font-size: 12px; display: flex; align-items: center; gap: 8px; animation: slideIn 0.3s ease; }
+    .toast.success { background: rgba(23, 201, 100, 0.9); color: white; }
+    .toast.error { background: rgba(243, 18, 96, 0.9); color: white; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    
+    /* AI 输入框 */
+    .ai-input-wrap { display: flex; gap: 8px; margin-top: 8px; }
+    .ai-input-wrap input { flex: 1; }
+    .ai-badge { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <!-- 头部 -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon"><i class="bi bi-diagram-3"></i></div>
+      <div class="header-title">
+        <h4>可视化工作流 <span class="ai-badge">AI</span></h4>
+        <p>拖拽节点创建自动化流程</p>
+      </div>
+    </div>
+    <div class="header-center" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px">
+      <i class="bi bi-pencil" style="color:var(--text-muted)"></i>
+      <input type="text" id="workflowNameInput" class="form-control" style="max-width:200px;text-align:center;font-weight:600" placeholder="工作流名称" onchange="updateWorkflowName()">
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="openInNewWindow()" title="独立窗口"><i class="bi bi-box-arrow-up-right"></i></button>
+      <button class="btn" onclick="showAiGenerate()"><i class="bi bi-stars"></i> AI生成</button>
+      <button class="btn" onclick="showScheduledTasks()"><i class="bi bi-clock"></i> 定时任务</button>
+      <button class="btn" onclick="newWorkflow()"><i class="bi bi-plus-lg"></i> 新建</button>
+      <button class="btn btn-primary" onclick="saveWorkflow()"><i class="bi bi-check-lg"></i> 保存</button>
+    </div>
+  </div>
+
+  <!-- 主布局 -->
+  <div class="main-layout">
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">节点类型</div>
+        <div class="node-item trigger" draggable="true" data-type="trigger"><i class="bi bi-lightning"></i> 触发器</div>
+        <div class="node-item condition" draggable="true" data-type="condition"><i class="bi bi-signpost-split"></i> 条件</div>
+        <div class="node-item action" draggable="true" data-type="action"><i class="bi bi-play-circle"></i> 动作</div>
+        <div class="node-item" draggable="true" data-type="storage"><i class="bi bi-database"></i> 用户存储</div>
+        <div class="node-item" draggable="true" data-type="global_storage"><i class="bi bi-globe"></i> 全局存储</div>
+        <div class="node-item" draggable="true" data-type="leaderboard"><i class="bi bi-trophy"></i> 排行榜</div>
+        <div class="node-item" draggable="true" data-type="delay"><i class="bi bi-clock"></i> 延时</div>
+        <div class="node-item" draggable="true" data-type="set_var"><i class="bi bi-braces"></i> 设置变量</div>
+        <div class="node-item" draggable="true" data-type="list_random"><i class="bi bi-shuffle"></i> 随机抽取</div>
+        <div class="node-item" draggable="true" data-type="comment"><i class="bi bi-chat-quote"></i> 注释</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">工作流列表</div>
+        <div id="workflowList"></div>
+      </div>
+    </div>
+
+    <!-- 画布 -->
+    <div class="canvas-container" id="canvasContainer">
+      <div class="canvas-inner" id="canvasInner">
+        <svg id="connectionsSvg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- 节点编辑模态框 -->
+  <div class="modal-overlay" id="nodeModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h5 id="nodeModalTitle">编辑节点</h5>
+        <button class="modal-close" onclick="closeModal('nodeModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="nodeModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('nodeModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveNodeEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 定时任务模态框 -->
+  <div class="modal-overlay" id="scheduledModal">
+    <div class="modal-box lg">
+      <div class="modal-header">
+        <h5><i class="bi bi-clock me-2"></i>定时任务管理</h5>
+        <button class="modal-close" onclick="closeModal('scheduledModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <button class="btn btn-sm btn-primary" onclick="showAddTaskForm()" style="margin-bottom:12px"><i class="bi bi-plus"></i> 添加任务</button>
+        <div id="addTaskForm" style="display:none;background:var(--bg-item);padding:12px;border-radius:8px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group"><label class="form-label">任务ID</label><input type="text" class="form-control" id="taskId" placeholder="唯一标识"></div>
+            <div class="form-group"><label class="form-label">绑定工作流</label><select class="form-control" id="taskWorkflowId"></select></div>
+            <div class="form-group"><label class="form-label">任务类型</label><select class="form-control" id="taskType" onchange="updateTaskTypeFields()"><option value="daily">每日定时</option><option value="interval">间隔执行</option></select></div>
+            <div class="form-group" id="dailyTimeGroup"><label class="form-label">执行时间</label><input type="time" class="form-control" id="taskDailyTime" value="08:00"></div>
+            <div class="form-group" id="intervalGroup" style="display:none"><label class="form-label">间隔(秒)</label><input type="number" class="form-control" id="taskInterval" value="3600" min="60"></div>
+            <div class="form-group"><label class="form-label">目标类型</label><select class="form-control" id="taskTargetType"><option value="group">群聊</option><option value="private">私聊</option></select></div>
+            <div class="form-group"><label class="form-label">目标ID</label><input type="text" class="form-control" id="taskTargetId" placeholder="群号或QQ号"></div>
+            <div class="form-group"><label class="form-label">虚拟触发者</label><input type="text" class="form-control" id="taskTriggerUserId" placeholder="用于条件判断的QQ号（可选）"></div>
+            <div class="form-group"><label class="form-label">备注</label><input type="text" class="form-control" id="taskDesc" placeholder="可选"></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-sm btn-success" onclick="addScheduledTask()">添加</button>
+            <button class="btn btn-sm" onclick="hideAddTaskForm()">取消</button>
+          </div>
+        </div>
+        <div id="scheduledTaskList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主人验证模态框 -->
+  <div class="modal-overlay" id="masterAuthModal">
+    <div class="modal-box" style="max-width:350px">
+      <div class="modal-header">
+        <h5><i class="bi bi-shield-lock"></i> 权限验证</h5>
+        <button class="modal-close" onclick="closeModal('masterAuthModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">此功能需要主人权限，请输入验证密码</p>
+        <div class="form-group">
+          <label class="form-label">主人密码</label>
+          <input type="password" class="form-control" id="masterPassword" placeholder="请输入主人密码">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('masterAuthModal')">取消</button>
+        <button class="btn btn-primary" onclick="verifyMasterPassword()">验证</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI生成模态框 -->
+  <div class="modal-overlay" id="aiModal">
+    <div class="modal-box lg">
+      <div class="modal-header">
+        <h5><i class="bi bi-stars"></i> AI 生成工作流</h5>
+        <button class="modal-close" onclick="closeModal('aiModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">描述你想要的工作流功能</label>
+          <textarea class="form-control" id="aiDescription" rows="4" placeholder="例如：当用户发送"签到"时，判断今天是否已签到，未签到则随机获得5-10积分，已签到则提示明天再来"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">AI模型</label>
+          <select class="form-control" id="aiModel">
+            <option value="gpt-5" selected>GPT-5 (默认)</option>
+            <option value="gpt-5.1">GPT-5.1 (最新)</option>
+            <option value="gpt-5-mini">GPT-5 Mini</option>
+            <option value="gpt-5-mini-ca">GPT-5 Mini CA</option>
+            <option value="gpt-5-nano-ca">GPT-5 Nano CA</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+            <option value="gpt-4">GPT-4</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+            <option value="gemini-flash-lite-latest">Gemini Flash Lite</option>
+            <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="claude-3-opus">Claude 3 Opus</option>
+            <option value="deepseek-chat">DeepSeek Chat</option>
+            <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+          </select>
+        </div>
+        <div id="aiResult" style="display:none;margin-top:12px;padding:12px;background:var(--bg-item);border-radius:8px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('aiModal')">取消</button>
+        <button class="btn btn-primary" id="aiGenerateBtn" onclick="generateWorkflowByAi()"><i class="bi bi-stars"></i> 生成</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// API 路由在 /api/Plugin/ext/ 下，页面路由在 /api/Plugin/page/ 下
+const API_BASE = window.location.pathname.replace('/page/', '/ext/').replace(/\/[^\/]*$/, '');
+const AI_API = 'https://i.elaina.vin/api/openai/chat/completions';
+
+// 获取认证 token
+const urlParams = new URLSearchParams(window.location.search);
+const webuiToken = urlParams.get('webui_token')?.replace(/^"|"$/g, '') || '';
+
+// 带认证的 fetch
+async function authFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  if (webuiToken) headers['Authorization'] = `Bearer ${webuiToken}`;
+  if (options.body && typeof options.body === 'string') headers['Content-Type'] = 'application/json';
+  return fetch(url, { ...options, headers });
+}
+
+// 主人权限相关
+let requireMaster = false;
+let masterPassword = '';
+let masterOnlyTriggers = ['regex', 'any', 'scheduled', 'timer'];
+let pendingMasterAction = null;
+
+async function loadConfig() {
+  try {
+    const res = await authFetch(API_BASE + '/config');
+    const data = await res.json();
+    if (data.success) {
+      requireMaster = data.require_master;
+      masterOnlyTriggers = data.master_only_triggers || masterOnlyTriggers;
+    }
+  } catch (e) { }
+}
+
+function needsMasterAuth(triggerType) {
+  return requireMaster && masterOnlyTriggers.includes(triggerType) && !masterPassword;
+}
+
+function showMasterAuth(callback) {
+  pendingMasterAction = callback;
+  document.getElementById('masterPassword').value = '';
+  openModal('masterAuthModal');
+}
+
+async function verifyMasterPassword() {
+  const pwd = document.getElementById('masterPassword').value;
+  try {
+    const res = await authFetch(API_BASE + '/verify_master', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+    const data = await res.json();
+    if (data.success) {
+      masterPassword = pwd;
+      closeModal('masterAuthModal');
+      showToast('验证成功');
+      if (pendingMasterAction) { pendingMasterAction(); pendingMasterAction = null; }
+    } else { showToast(data.error || '密码错误', 'error'); }
+  } catch (e) { showToast('验证失败', 'error'); }
+}
+
+// 带主人密码的请求
+async function masterAuthFetch(url, options = {}) {
+  let body = {};
+  if (options.body) { try { body = JSON.parse(options.body); } catch { body = {}; } }
+  body.master_password = masterPassword;
+  return authFetch(url, { ...options, body: JSON.stringify(body) });
+}
+
+// 工作流生成系统提示
+const WORKFLOW_SYSTEM_PROMPT = `你是QQ机器人工作流生成器。根据用户需求生成完整的工作流JSON。
+
+## 节点类型
+1. trigger - 触发器(必须有一个) data:{trigger_type:"exact/startswith/contains/regex/scheduled",trigger_content:"触发词"}
+2. condition - 条件判断(2输出:满足output-1,不满足output-2) 见下方条件类型
+3. action - 动作节点 见下方动作类型
+4. storage - 用户存储 data:{storage_type:"get/set/incr/decr/delete",storage_key:"键",storage_value:"值",default_value:"默认",result_var:"变量"}
+5. global_storage - 全局存储(同storage)
+6. leaderboard - 排行榜 data:{leaderboard_type:"top/my_rank/count",leaderboard_key:"score",limit:10,ascending:"false"}
+7. delay - 延时 data:{seconds:3}
+8. set_var - 设置变量 data:{var_name:"名",var_value:"值"}
+9. list_random - 随机抽取 data:{list_items:"a|b|c",weights:"50|30|20",result_var:"result",index_var:"index"}
+
+## 条件类型(condition节点的data必须包含condition_type)
+- contains: 内容包含 {condition_type:"contains",condition_value:"要包含的文字"}
+- equals: 内容等于 {condition_type:"equals",condition_value:"要等于的文字"}
+- regex: 正则匹配 {condition_type:"regex",condition_value:"正则表达式"}
+- random: 随机概率 {condition_type:"random",condition_value:"50"}  50表示50%概率
+- user_id: 用户ID {condition_type:"user_id",condition_value:"12345678"}
+- group_id: 群ID {condition_type:"group_id",condition_value:"12345678"}
+- var_equals: 变量等于 {condition_type:"var_equals",var_name:"变量名",condition_value:"期望值"}
+- var_gt: 变量大于 {condition_type:"var_gt",var_name:"变量名",condition_value:"数值"}
+- var_lt: 变量小于 {condition_type:"var_lt",var_name:"变量名",condition_value:"数值"}
+- data_equals: 存储等于 {condition_type:"data_equals",condition_value:"score=100"} 检查用户存储
+- data_gt: 存储大于 {condition_type:"data_gt",condition_value:"score>50"}
+- data_lt: 存储小于 {condition_type:"data_lt",condition_value:"score<100"}
+- data_is_today: 今日已操作 {condition_type:"data_is_today",condition_value:"sign_date"} 存储日期的键名
+- cooldown: 冷却时间 {condition_type:"cooldown",condition_value:"last_use,60"} 键名,秒数
+- time_range: 时间范围 {condition_type:"time_range",condition_value:"9-18"} 小时范围
+- weekday_in: 星期几 {condition_type:"weekday_in",condition_value:"周一|周二|周三"} 或 "1|2|3"
+- global_equals: 全局存储等于 {condition_type:"global_equals",condition_value:"status=open"}
+- global_gt: 全局存储大于 {condition_type:"global_gt",condition_value:"count>10"}
+- expression: JS表达式 {condition_type:"expression",condition_value:"{score} > 50 && {level} >= 2"}
+
+## 动作类型(action节点的data必须包含action_type)
+- reply_text: 回复文字 {action_type:"reply_text",action_value:"内容，用|||分隔多条随机"}
+- reply_image: 发图片 {action_type:"reply_image",action_value:"图片URL",image_text:"说明"}
+- reply_voice: 发语音 {action_type:"reply_voice",action_value:"语音URL"}
+- reply_video: 发视频 {action_type:"reply_video",action_value:"视频URL"}
+- reply_at: @回复 {action_type:"reply_at",action_value:"内容"}
+- reply_face: 表情 {action_type:"reply_face",action_value:"表情ID"}
+- reply_poke: 戳一戳 {action_type:"reply_poke",action_value:"目标QQ"}
+- reply_forward: 合并转发 {action_type:"reply_forward",action_value:"消息1|||消息2|||消息3"}
+- reply_json: JSON卡片 {action_type:"reply_json",action_value:"JSON字符串"}
+- reply_file: 发文件 {action_type:"reply_file",action_value:"文件URL",file_name:"文件名"}
+- reply_music: 音乐分享 {action_type:"reply_music",music_type:"qq/163/custom",action_value:"歌曲ID"}
+- custom_api: 调用API {action_type:"custom_api",api_url:"URL",api_method:"GET/POST",api_headers:"请求头JSON",api_body:"请求体",response_type:"json/text",result_var:"api_result",api_reply:"回复模板用{api_json.字段}"}
+- math: 数学运算 {action_type:"math",math_type:"add/sub/mul/div/mod/random",operand1:"数值1",operand2:"数值2",result_var:"math_result"}
+- string_op: 字符串 {action_type:"string_op",string_type:"concat/replace/split/substr/length/upper/lower",input1:"字符串1",input2:"字符串2",result_var:"string_result"}
+- group_sign: 群签到 {action_type:"group_sign"}
+- group_ban: 群禁言 {action_type:"group_ban",target_user:"{user_id}",ban_duration:"600"}
+- group_kick: 群踢人 {action_type:"group_kick",target_user:"{user_id}",reject_add:"false"}
+- group_whole_ban: 全员禁言 {action_type:"group_whole_ban",enable_ban:"true/false"}
+- group_set_card: 设置群名片 {action_type:"group_set_card",target_user:"{user_id}",card_value:"新名片"}
+- group_notice: 发群公告 {action_type:"group_notice",action_value:"公告内容"}
+- call_api: 调用NapCatAPI {action_type:"call_api",api_action:"send_group_sign",api_params:'{"group_id":"{group_id}"}',result_var:"result"}
+
+## 变量: {user_id} {group_id} {content} {$1} {$2} {today} {time} {timestamp} {random} {storage.键} {global.键} {math_result} {api_result} {api_json.字段}
+
+## 连接: from_output普通节点用"output_1", condition满足用"output-1", 不满足用"output-2"
+
+## 输出格式(只返回JSON):
+{"name":"名称","nodes":[{"id":"node_1","type":"trigger","x":100,"y":150,"data":{...}},...],"connections":[{"from_node":"node_1","from_output":"output_1","to_node":"node_2"},...]}
+
+## 示例:签到系统
+{"name":"每日签到","nodes":[{"id":"node_1","type":"trigger","x":100,"y":150,"data":{"trigger_type":"exact","trigger_content":"签到"}},{"id":"node_2","type":"condition","x":280,"y":150,"data":{"condition_type":"data_is_today","condition_value":"sign_date"}},{"id":"node_3","type":"action","x":460,"y":50,"data":{"action_type":"reply_text","action_value":"今日已签到，明天再来~"}},{"id":"node_4","type":"action","x":460,"y":250,"data":{"action_type":"math","math_type":"random","operand1":"5","operand2":"10","result_var":"score"}},{"id":"node_5","type":"storage","x":640,"y":250,"data":{"storage_type":"incr","storage_key":"total_score","storage_value":"{score}"}},{"id":"node_6","type":"storage","x":820,"y":250,"data":{"storage_type":"set","storage_key":"sign_date","storage_value":"{today}"}},{"id":"node_7","type":"action","x":1000,"y":250,"data":{"action_type":"reply_text","action_value":"签到成功！+{score}分，总分{storage.total_score}"}}],"connections":[{"from_node":"node_1","from_output":"output_1","to_node":"node_2"},{"from_node":"node_2","from_output":"output-1","to_node":"node_3"},{"from_node":"node_2","from_output":"output-2","to_node":"node_4"},{"from_node":"node_4","from_output":"output_1","to_node":"node_5"},{"from_node":"node_5","from_output":"output_1","to_node":"node_6"},{"from_node":"node_6","from_output":"output_1","to_node":"node_7"}]}`;
+
+// 节点配置
+const NODE_CONFIGS = {
+  trigger: { title: '触发器', icon: 'bi-lightning', color: 'success', inputs: 0, outputs: 1, fields: [{name:'trigger_type',label:'触发类型',type:'select',options:[{value:'exact',label:'完全匹配'},{value:'startswith',label:'前缀匹配'},{value:'contains',label:'包含匹配'},{value:'regex',label:'正则匹配'},{value:'scheduled',label:'定时触发'}]},{name:'trigger_content',label:'触发内容',type:'text',placeholder:'定时触发可留空'}]},
+  condition: { title: '条件', icon: 'bi-signpost-split', color: 'warning', inputs: 1, outputs: 2, isDynamic: true },
+  action: { title: '动作', icon: 'bi-play-circle', color: 'primary', inputs: 1, outputs: 1, isDynamic: true },
+  storage: { title: '用户存储', icon: 'bi-database', color: 'danger', inputs: 1, outputs: 1, fields: [{name:'storage_type',label:'操作',type:'select',options:[{value:'get',label:'读取'},{value:'set',label:'写入'},{value:'incr',label:'增加'},{value:'decr',label:'减少'},{value:'delete',label:'删除'}]},{name:'storage_key',label:'键名',type:'text'},{name:'storage_value',label:'值',type:'text'},{name:'default_value',label:'默认值',type:'text'},{name:'result_var',label:'结果变量',type:'text'}]},
+  global_storage: { title: '全局存储', icon: 'bi-globe', color: 'primary', inputs: 1, outputs: 1, fields: [{name:'storage_type',label:'操作',type:'select',options:[{value:'get',label:'读取'},{value:'set',label:'写入'},{value:'incr',label:'增加'},{value:'decr',label:'减少'}]},{name:'storage_key',label:'键名',type:'text'},{name:'storage_value',label:'值',type:'text'},{name:'default_value',label:'默认值',type:'text'},{name:'result_var',label:'结果变量',type:'text'}]},
+  leaderboard: { title: '排行榜', icon: 'bi-trophy', color: 'warning', inputs: 1, outputs: 1, fields: [{name:'leaderboard_type',label:'操作',type:'select',options:[{value:'top',label:'获取排行榜'},{value:'my_rank',label:'我的排名'},{value:'count',label:'统计人数'}]},{name:'leaderboard_key',label:'排行键名',type:'text'},{name:'limit',label:'TOP数量',type:'number'},{name:'ascending',label:'排序',type:'select',options:[{value:'false',label:'降序'},{value:'true',label:'升序'}]}]},
+  delay: { title: '延时', icon: 'bi-clock', color: 'secondary', inputs: 1, outputs: 1, fields: [{name:'seconds',label:'秒数',type:'number'}]},
+  set_var: { title: '设置变量', icon: 'bi-braces', color: 'info', inputs: 1, outputs: 1, fields: [{name:'var_name',label:'变量名',type:'text'},{name:'var_value',label:'变量值',type:'text'}]},
+  list_random: { title: '随机抽取', icon: 'bi-shuffle', color: 'info', inputs: 1, outputs: 1, fields: [{name:'list_items',label:'选项(|分隔)',type:'textarea'},{name:'weights',label:'权重',type:'text'},{name:'result_var',label:'结果变量',type:'text'}]},
+  comment: { title: '注释', icon: 'bi-chat-quote', color: 'secondary', inputs: 0, outputs: 0, fields: [{name:'comment_text',label:'备注',type:'textarea'}]}
+};
+
+// 条件类型配置
+const CONDITION_TYPES = {
+  contains: { label: '内容包含', fields: [{name:'condition_value',label:'包含的文字',type:'text',placeholder:'检查消息是否包含此文字'}] },
+  equals: { label: '内容等于', fields: [{name:'condition_value',label:'等于的文字',type:'text',placeholder:'消息内容完全等于此文字'}] },
+  regex: { label: '正则匹配', fields: [{name:'condition_value',label:'正则表达式',type:'text',placeholder:'如 ^hello.*world$'}] },
+  random: { label: '随机概率', fields: [{name:'condition_value',label:'概率(%)',type:'number',placeholder:'0-100，如 50 表示50%概率'}] },
+  user_id: { label: '用户ID', fields: [{name:'condition_value',label:'用户ID',type:'text',placeholder:'指定用户ID才通过'}] },
+  group_id: { label: '群ID', fields: [{name:'condition_value',label:'群ID',type:'text',placeholder:'指定群ID才通过'}] },
+  var_equals: { label: '变量等于', fields: [{name:'var_name',label:'变量名',type:'text',placeholder:'要检查的变量名'},{name:'condition_value',label:'等于的值',type:'text',placeholder:'变量应等于的值'}] },
+  var_gt: { label: '变量大于', fields: [{name:'var_name',label:'变量名',type:'text',placeholder:'要检查的变量名'},{name:'condition_value',label:'大于的值',type:'number',placeholder:'变量应大于的数值'}] },
+  var_lt: { label: '变量小于', fields: [{name:'var_name',label:'变量名',type:'text',placeholder:'要检查的变量名'},{name:'condition_value',label:'小于的值',type:'number',placeholder:'变量应小于的数值'}] },
+  data_equals: { label: '存储等于', fields: [{name:'condition_value',label:'键名=值',type:'text',placeholder:'如 score=100，检查用户存储'}] },
+  data_gt: { label: '存储大于', fields: [{name:'condition_value',label:'键名>值',type:'text',placeholder:'如 score>50，检查用户存储'}] },
+  data_lt: { label: '存储小于', fields: [{name:'condition_value',label:'键名<值',type:'text',placeholder:'如 score<100，检查用户存储'}] },
+  data_is_today: { label: '今日已操作', fields: [{name:'condition_value',label:'存储键名',type:'text',placeholder:'存储日期的键名，如 last_sign'}] },
+  cooldown: { label: '冷却时间', fields: [{name:'condition_value',label:'键名,秒数',type:'text',placeholder:'如 last_use,60 表示60秒冷却'}] },
+  time_range: { label: '时间范围', fields: [{name:'condition_value',label:'开始-结束(小时)',type:'text',placeholder:'如 9-18 表示9点到18点'}] },
+  weekday_in: { label: '星期几', fields: [{name:'condition_value',label:'星期',type:'text',placeholder:'如 周一|周二|周三 或 1|2|3'}] },
+  global_equals: { label: '全局存储等于', fields: [{name:'condition_value',label:'键名=值',type:'text',placeholder:'如 status=open'}] },
+  global_gt: { label: '全局存储大于', fields: [{name:'condition_value',label:'键名>值',type:'text',placeholder:'如 count>10'}] },
+  expression: { label: '表达式', fields: [{name:'condition_value',label:'JS表达式',type:'textarea',placeholder:'如 {score} > 50 && {level} >= 2'}] }
+};
+
+// 动作类型配置
+const ACTION_TYPES = {
+  reply_text: { label: '回复文字', fields: [{name:'action_value',label:'回复内容',type:'textarea',placeholder:'支持变量 {user_id} {$1}，用|||分隔多条随机回复'}] },
+  reply_image: { label: '发送图片', fields: [{name:'action_value',label:'图片URL',type:'text',placeholder:'http://... 或 base64://...'},{name:'image_text',label:'图片说明',type:'text',placeholder:'可选'}] },
+  reply_voice: { label: '发送语音', fields: [{name:'action_value',label:'语音URL',type:'text',placeholder:'http://... 或 base64://...'}] },
+  reply_video: { label: '发送视频', fields: [{name:'action_value',label:'视频URL',type:'text',placeholder:'http://... 或 base64://...'}] },
+  reply_at: { label: '@回复', fields: [{name:'action_value',label:'回复内容',type:'textarea',placeholder:'@用户后的消息内容'}] },
+  reply_face: { label: '发送表情', fields: [{name:'action_value',label:'表情ID',type:'number',placeholder:'QQ表情ID'}] },
+  reply_poke: { label: '戳一戳', fields: [{name:'action_value',label:'目标用户',type:'text',placeholder:'留空则戳发送者'}] },
+  reply_forward: { label: '合并转发', fields: [{name:'action_value',label:'消息列表',type:'textarea',placeholder:'用|||分隔多条消息'}] },
+  reply_json: { label: 'JSON卡片', fields: [{name:'action_value',label:'JSON内容',type:'textarea',placeholder:'卡片JSON数据'}] },
+  reply_file: { label: '发送文件', fields: [{name:'action_value',label:'文件URL',type:'text',placeholder:'文件地址'},{name:'file_name',label:'文件名',type:'text',placeholder:'可选'}] },
+  reply_music: { label: '音乐分享', fields: [{name:'music_type',label:'平台',type:'select',options:[{value:'qq',label:'QQ音乐'},{value:'163',label:'网易云'},{value:'custom',label:'自定义'}]},{name:'action_value',label:'音乐ID',type:'text',placeholder:'歌曲ID'}] },
+  custom_api: { label: '调用外部API', fields: [{name:'api_url',label:'API地址',type:'text',placeholder:'https://api.example.com/...'},{name:'api_method',label:'请求方式',type:'select',options:[{value:'GET',label:'GET'},{value:'POST',label:'POST'}]},{name:'api_headers',label:'请求头',type:'textarea',placeholder:'JSON格式或key:value每行一个'},{name:'api_body',label:'请求体',type:'textarea',placeholder:'POST请求的body'},{name:'response_type',label:'响应类型',type:'select',options:[{value:'json',label:'JSON'},{value:'text',label:'文本'}]},{name:'result_var',label:'结果变量',type:'text',placeholder:'api_result'},{name:'api_reply',label:'自动回复',type:'textarea',placeholder:'可用{api_result}或{api_json.field}'}] },
+  math: { label: '数学运算', fields: [{name:'math_type',label:'运算类型',type:'select',options:[{value:'add',label:'加法'},{value:'sub',label:'减法'},{value:'mul',label:'乘法'},{value:'div',label:'除法'},{value:'mod',label:'取余'},{value:'random',label:'随机数'}]},{name:'operand1',label:'操作数1',type:'text',placeholder:'数字或变量'},{name:'operand2',label:'操作数2',type:'text',placeholder:'数字或变量'},{name:'result_var',label:'结果变量',type:'text',placeholder:'math_result'}] },
+  string_op: { label: '字符串操作', fields: [{name:'string_type',label:'操作类型',type:'select',options:[{value:'concat',label:'拼接'},{value:'replace',label:'替换'},{value:'split',label:'分割'},{value:'substr',label:'截取'},{value:'length',label:'长度'},{value:'upper',label:'大写'},{value:'lower',label:'小写'}]},{name:'input1',label:'输入1',type:'text'},{name:'input2',label:'输入2',type:'text'},{name:'result_var',label:'结果变量',type:'text',placeholder:'string_result'}] },
+  group_sign: { label: '群签到', fields: [{name:'_hint',label:'说明',type:'hint',text:'自动为当前群执行签到，无需额外参数'}] },
+  group_ban: { label: '群禁言', fields: [{name:'target_user',label:'目标用户',type:'text',placeholder:'留空则为发送者 {user_id}'},{name:'ban_duration',label:'禁言时长(秒)',type:'number',placeholder:'0=解除禁言，默认600'}] },
+  group_kick: { label: '群踢人', fields: [{name:'target_user',label:'目标用户',type:'text',placeholder:'留空则为发送者 {user_id}'},{name:'reject_add',label:'拒绝再次加群',type:'select',options:[{value:'false',label:'否'},{value:'true',label:'是'}]}] },
+  group_whole_ban: { label: '全员禁言', fields: [{name:'enable_ban',label:'开关',type:'select',options:[{value:'true',label:'开启禁言'},{value:'false',label:'关闭禁言'}]}] },
+  group_set_card: { label: '设置群名片', fields: [{name:'target_user',label:'目标用户',type:'text',placeholder:'留空则为发送者 {user_id}'},{name:'card_value',label:'群名片',type:'text',placeholder:'新的群名片'}] },
+  group_notice: { label: '发群公告', fields: [{name:'action_value',label:'公告内容',type:'textarea',placeholder:'公告文本'}] },
+  call_api: { label: '调用NapCat API', fields: [{name:'api_action',label:'API名称',type:'text',placeholder:'如 send_group_sign'},{name:'api_params',label:'参数(JSON)',type:'textarea',placeholder:'{"group_id":"{group_id}"}'},{name:'result_var',label:'结果变量',type:'text',placeholder:'可选'}] }
+};
+
+// 状态变量
+let currentWorkflow = null;
+let workflows = [];
+let selectedNode = null;
+let editingNode = null;
+let connectingFrom = null;
+let nodeIdCounter = 1;
+
+// 独立窗口
+function openInNewWindow() {
+  const w = Math.min(1600, screen.width - 100), h = Math.min(900, screen.height - 100);
+  window.open(window.location.href, 'workflow', `width=${w},height=${h},left=${(screen.width-w)/2},top=${(screen.height-h)/2}`);
+}
+
+// Toast
+function showToast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${msg}`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// 模态框
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  initCanvas();
+  loadWorkflows();
+});
+
+function initCanvas() {
+  const canvas = document.getElementById('canvasInner');
+  document.querySelectorAll('.node-item').forEach(item => {
+    item.addEventListener('dragstart', e => e.dataTransfer.setData('nodeType', item.dataset.type));
+  });
+  canvas.addEventListener('dragover', e => e.preventDefault());
+  canvas.addEventListener('drop', e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('nodeType');
+    if (type && NODE_CONFIGS[type]) {
+      const rect = canvas.getBoundingClientRect();
+      const container = document.getElementById('canvasContainer');
+      createNode(type, e.clientX - rect.left + container.scrollLeft, e.clientY - rect.top + container.scrollTop);
+    }
+  });
+  canvas.addEventListener('click', e => { if (e.target === canvas) { if (selectedNode) { selectedNode.classList.remove('selected'); selectedNode = null; } } });
+}
+
+function createNode(type, x, y, data = {}, id = null) {
+  const cfg = NODE_CONFIGS[type];
+  if (!cfg) return null;
+  const node = document.createElement('div');
+  node.className = `wf-node ${type}`;
+  node.id = id || `node_${nodeIdCounter++}`;
+  node.style.left = x + 'px';
+  node.style.top = y + 'px';
+  node.dataset.type = type;
+  node.dataset.data = JSON.stringify(data);
+
+  let preview = '';
+  if (type === 'trigger') preview = data.trigger_content || '(未设置)';
+  else if (type === 'condition') preview = data.condition_value || '(未设置)';
+  else if (type === 'action') preview = data.action_value?.substring(0, 20) || data.action_type || '(未设置)';
+  else if (type === 'comment') preview = data.comment_text?.substring(0, 20) || '...';
+
+  node.innerHTML = `
+    <button class="btn-del-node" onclick="deleteNode('${node.id}')">&times;</button>
+    <div class="node-header"><i class="bi ${cfg.icon}"></i> ${cfg.title}</div>
+    <div class="node-body">${preview}</div>
+    ${cfg.inputs > 0 ? '<div class="node-port input"></div>' : ''}
+    ${cfg.outputs === 1 ? '<div class="node-port output"></div>' : ''}
+    ${cfg.outputs === 2 ? '<div class="node-port output output-1"></div><div class="node-port output output-2"></div>' : ''}
+  `;
+
+  // 拖拽
+  let isDragging = false, startX, startY, nodeStartX, nodeStartY;
+  node.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('node-port') || e.target.classList.contains('btn-del-node')) return;
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    nodeStartX = parseInt(node.style.left); nodeStartY = parseInt(node.style.top);
+    if (selectedNode) selectedNode.classList.remove('selected');
+    selectedNode = node;
+    node.classList.add('selected');
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    node.style.left = (nodeStartX + e.clientX - startX) + 'px';
+    node.style.top = (nodeStartY + e.clientY - startY) + 'px';
+    renderConnections();
+  });
+  document.addEventListener('mouseup', () => { isDragging = false; });
+
+  // 双击编辑
+  node.addEventListener('dblclick', () => editNode(node));
+
+  // 输出端口点击
+  node.querySelectorAll('.node-port.output, .node-port.output-1, .node-port.output-2').forEach(port => {
+    port.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (connectingFrom) {
+        document.querySelectorAll('.node-port.waiting').forEach(p => p.classList.remove('waiting'));
+        connectingFrom = null;
+      } else {
+        connectingFrom = { nodeId: node.id, output: port.classList.contains('output-1') ? 'output-1' : port.classList.contains('output-2') ? 'output-2' : 'output_1' };
+        port.classList.add('waiting');
+        showToast('点击目标节点的输入端口完成连接');
+      }
+    });
+  });
+  
+  // 输入端口点击
+  const inputPort = node.querySelector('.node-port.input');
+  if (inputPort) {
+    inputPort.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (connectingFrom && connectingFrom.nodeId !== node.id) {
+        addConnection(connectingFrom.nodeId, connectingFrom.output, node.id);
+        document.querySelectorAll('.node-port.waiting').forEach(p => p.classList.remove('waiting'));
+        connectingFrom = null;
+        showToast('连接成功');
+      } else if (!connectingFrom) {
+        showToast('请先点击输出端口');
+      }
+    });
+  }
+
+  document.getElementById('canvasInner').appendChild(node);
+  return node;
+}
+
+function deleteNode(nodeId) {
+  const node = document.getElementById(nodeId);
+  if (node) {
+    node.remove();
+    if (currentWorkflow) {
+      currentWorkflow.nodes = currentWorkflow.nodes.filter(n => n.id !== nodeId);
+      currentWorkflow.connections = currentWorkflow.connections.filter(c => c.from_node !== nodeId && c.to_node !== nodeId);
+      renderConnections();
+    }
+  }
+}
+
+function editNode(node) {
+  editingNode = node;
+  const type = node.dataset.type;
+  const cfg = NODE_CONFIGS[type];
+  const data = JSON.parse(node.dataset.data || '{}');
+  
+  document.getElementById('nodeModalTitle').textContent = `编辑 ${cfg.title}`;
+  
+  // 动态配置节点
+  if (type === 'action') {
+    renderActionEditor(data);
+  } else if (type === 'condition') {
+    renderConditionEditor(data);
+  } else {
+    let html = '';
+    (cfg.fields || []).forEach(f => {
+      html += renderField(f, data[f.name]);
+    });
+    html += `<div class="ai-input-wrap"><input type="text" class="form-control" id="aiNodeDesc" placeholder="用AI描述这个节点..."><button class="btn btn-sm" onclick="aiGenerateNode('${type}')"><i class="bi bi-stars"></i></button></div>`;
+    document.getElementById('nodeModalBody').innerHTML = html;
+  }
+  openModal('nodeModal');
+}
+
+// 渲染单个字段
+function renderField(f, val) {
+  val = val !== undefined ? val : (f.default || '');
+  if (f.type === 'hint') {
+    return `<div class="form-group" style="background:var(--accent-light);padding:10px;border-radius:6px;font-size:11px;color:var(--text-secondary)"><i class="bi bi-info-circle"></i> ${f.text}</div>`;
+  } else if (f.type === 'select') {
+    return `<div class="form-group"><label class="form-label">${f.label}</label><select class="form-control" data-field="${f.name}">${f.options.map(o => `<option value="${o.value}" ${val == o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select></div>`;
+  } else if (f.type === 'textarea') {
+    return `<div class="form-group"><label class="form-label">${f.label}</label><textarea class="form-control" data-field="${f.name}" placeholder="${f.placeholder || ''}">${val}</textarea></div>`;
+  } else {
+    return `<div class="form-group"><label class="form-label">${f.label}</label><input type="${f.type || 'text'}" class="form-control" data-field="${f.name}" value="${val}" placeholder="${f.placeholder || ''}"></div>`;
+  }
+}
+
+// 渲染条件编辑器
+function renderConditionEditor(data) {
+  const currentType = data.condition_type || 'contains';
+  let html = `<div class="form-group"><label class="form-label">条件类型</label><select class="form-control" data-field="condition_type" onchange="onConditionTypeChange(this.value)">`;
+  Object.entries(CONDITION_TYPES).forEach(([k, v]) => {
+    html += `<option value="${k}" ${currentType === k ? 'selected' : ''}>${v.label}</option>`;
+  });
+  html += `</select></div><div id="conditionFieldsContainer"></div>`;
+  html += `<div style="margin-top:10px;padding:10px;background:var(--accent-light);border-radius:6px;font-size:11px"><i class="bi bi-info-circle"></i> 条件成立走<span style="color:var(--success-color)">绿色输出</span>，不成立走<span style="color:var(--danger-color)">红色输出</span></div>`;
+  html += `<div class="ai-input-wrap"><input type="text" class="form-control" id="aiNodeDesc" placeholder="用AI描述这个条件..."><button class="btn btn-sm" onclick="aiGenerateNode('condition')"><i class="bi bi-stars"></i></button></div>`;
+  document.getElementById('nodeModalBody').innerHTML = html;
+  renderConditionFields(currentType, data);
+}
+
+// 条件类型切换
+function onConditionTypeChange(conditionType) {
+  const data = {};
+  document.querySelectorAll('#nodeModalBody [data-field]').forEach(el => {
+    data[el.dataset.field] = el.value;
+  });
+  data.condition_type = conditionType;
+  renderConditionFields(conditionType, data);
+}
+
+// 渲染条件专用字段
+function renderConditionFields(conditionType, data) {
+  const cfg = CONDITION_TYPES[conditionType];
+  if (!cfg) return;
+  let html = '';
+  (cfg.fields || []).forEach(f => {
+    html += renderField(f, data[f.name]);
+  });
+  document.getElementById('conditionFieldsContainer').innerHTML = html;
+}
+
+// 渲染动作编辑器
+function renderActionEditor(data) {
+  const currentType = data.action_type || 'reply_text';
+  let html = `<div class="form-group"><label class="form-label">动作类型</label><select class="form-control" data-field="action_type" onchange="onActionTypeChange(this.value)">`;
+  Object.entries(ACTION_TYPES).forEach(([k, v]) => {
+    html += `<option value="${k}" ${currentType === k ? 'selected' : ''}>${v.label}</option>`;
+  });
+  html += `</select></div><div id="actionFieldsContainer"></div>`;
+  html += `<div class="ai-input-wrap"><input type="text" class="form-control" id="aiNodeDesc" placeholder="用AI描述这个动作..."><button class="btn btn-sm" onclick="aiGenerateNode('action')"><i class="bi bi-stars"></i></button></div>`;
+  document.getElementById('nodeModalBody').innerHTML = html;
+  renderActionFields(currentType, data);
+}
+
+// 动作类型切换
+function onActionTypeChange(actionType) {
+  const data = {};
+  document.querySelectorAll('#nodeModalBody [data-field]').forEach(el => {
+    data[el.dataset.field] = el.value;
+  });
+  data.action_type = actionType;
+  renderActionFields(actionType, data);
+}
+
+// 渲染动作专用字段
+function renderActionFields(actionType, data) {
+  const cfg = ACTION_TYPES[actionType];
+  if (!cfg) return;
+  let html = '';
+  (cfg.fields || []).forEach(f => {
+    html += renderField(f, data[f.name]);
+  });
+  document.getElementById('actionFieldsContainer').innerHTML = html;
+}
+
+function saveNodeEdit() {
+  if (!editingNode) return;
+  const data = {};
+  document.querySelectorAll('#nodeModalBody [data-field]').forEach(el => {
+    if (el.value !== '') data[el.dataset.field] = el.value;
+  });
+  editingNode.dataset.data = JSON.stringify(data);
+  
+  const type = editingNode.dataset.type;
+  let preview = '';
+  if (type === 'trigger') preview = data.trigger_content || '(未设置)';
+  else if (type === 'condition') {
+    const condCfg = CONDITION_TYPES[data.condition_type];
+    preview = condCfg?.label || data.condition_type || '(未设置)';
+    if (data.condition_value) preview += ': ' + data.condition_value.substring(0, 12);
+  }
+  else if (type === 'action') {
+    const actionCfg = ACTION_TYPES[data.action_type];
+    preview = actionCfg?.label || data.action_type || '(未设置)';
+    if (data.action_value) preview += ': ' + data.action_value.substring(0, 15);
+  }
+  else if (type === 'comment') preview = data.comment_text?.substring(0, 20) || '...';
+  else preview = Object.values(data)[0]?.toString().substring(0, 20) || '...';
+  editingNode.querySelector('.node-body').textContent = preview;
+  
+  closeModal('nodeModal');
+  editingNode = null;
+}
+
+// AI 生成节点
+async function aiGenerateNode(type) {
+  const desc = document.getElementById('aiNodeDesc').value.trim();
+  if (!desc) { showToast('请输入描述', 'error'); return; }
+  const cfg = NODE_CONFIGS[type];
+  let fields = '';
+  if (type === 'action') {
+    const actionType = document.querySelector('[data-field="action_type"]')?.value || 'reply_text';
+    const actionCfg = ACTION_TYPES[actionType];
+    fields = 'action_type, ' + (actionCfg?.fields?.map(f => f.name).join(', ') || '');
+  } else if (type === 'condition') {
+    const conditionType = document.querySelector('[data-field="condition_type"]')?.value || 'contains';
+    const condCfg = CONDITION_TYPES[conditionType];
+    fields = 'condition_type, ' + (condCfg?.fields?.map(f => f.name).join(', ') || '');
+  } else {
+    fields = cfg?.fields?.map(f => f.name).join(', ') || '';
+  }
+  const prompt = `生成${cfg?.title || type}节点的JSON配置。可用字段: ${fields}。需求: ${desc}。只返回JSON对象，如 {"trigger_type":"exact","trigger_content":"签到"}`;
+  
+  try {
+    const res = await fetch(AI_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-5', messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) {
+      const nodeData = JSON.parse(match[0]);
+      Object.entries(nodeData).forEach(([k, v]) => {
+        const el = document.querySelector(`#nodeModalBody [data-field="${k}"]`);
+        if (el) el.value = v;
+      });
+      showToast('AI已填充', 'success');
+    } else {
+      showToast('解析失败', 'error');
+    }
+  } catch (e) { showToast('请求失败', 'error'); }
+}
+
+// 连接
+let connections = [];
+function addConnection(fromNode, fromOutput, toNode) {
+  const conn = { from_node: fromNode, from_output: fromOutput, to_node: toNode };
+  connections.push(conn);
+  if (currentWorkflow) {
+    if (!currentWorkflow.connections) currentWorkflow.connections = [];
+    currentWorkflow.connections.push(conn);
+  }
+  renderConnections();
+}
+
+function renderConnections() {
+  const svg = document.getElementById('connectionsSvg');
+  svg.innerHTML = '';
+  const allConnections = currentWorkflow ? currentWorkflow.connections : connections;
+  allConnections.forEach(c => {
+    const fromEl = document.getElementById(c.from_node);
+    const toEl = document.getElementById(c.to_node);
+    if (!fromEl || !toEl) return;
+    
+    let fromPort;
+    if (c.from_output === 'output-1') fromPort = fromEl.querySelector('.output-1');
+    else if (c.from_output === 'output-2') fromPort = fromEl.querySelector('.output-2');
+    else fromPort = fromEl.querySelector('.node-port.output');
+    const toPort = toEl.querySelector('.node-port.input');
+    if (!fromPort || !toPort) return;
+    
+    const fromRect = fromPort.getBoundingClientRect();
+    const toRect = toPort.getBoundingClientRect();
+    const canvas = document.getElementById('canvasInner').getBoundingClientRect();
+    
+    const x1 = fromRect.left + fromRect.width/2 - canvas.left;
+    const y1 = fromRect.top + fromRect.height/2 - canvas.top;
+    const x2 = toRect.left + toRect.width/2 - canvas.left;
+    const y2 = toRect.top + toRect.height/2 - canvas.top;
+    
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const cx = (x1 + x2) / 2;
+    path.setAttribute('d', `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+    path.setAttribute('class', 'connection-line');
+    svg.appendChild(path);
+  });
+}
+
+// 工作流操作
+async function loadWorkflows() {
+  try {
+    const res = await authFetch(API_BASE + '/list');
+    const data = await res.json();
+    workflows = data.workflows || [];
+    renderWorkflowList();
+  } catch (e) { }
+}
+
+function renderWorkflowList() {
+  const container = document.getElementById('workflowList');
+  if (!workflows.length) { container.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:11px;padding:20px">暂无工作流</div>'; return; }
+  container.innerHTML = workflows.map(w => `
+    <div class="wf-item ${currentWorkflow?.id === w.id ? 'active' : ''}" onclick="loadWorkflow('${w.id}')">
+      <div class="wf-name">${w.name || '未命名'}</div>
+      <div class="wf-trigger">${w.trigger_type || ''}: ${w.trigger_content || ''}</div>
+      <div class="wf-actions">
+        <span class="wf-badge ${w.enabled ? 'on' : 'off'}" onclick="event.stopPropagation();toggleWorkflow('${w.id}')">${w.enabled ? '启用' : '禁用'}</span>
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteWorkflow('${w.id}')" style="padding:2px 6px;font-size:9px">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadWorkflow(id) {
+  const w = workflows.find(x => x.id === id);
+  if (!w) return;
+  currentWorkflow = JSON.parse(JSON.stringify(w));
+  
+  // 更新名称输入框
+  document.getElementById('workflowNameInput').value = w.name || '';
+  
+  // 清空画布
+  document.querySelectorAll('.wf-node').forEach(n => n.remove());
+  connections = [];
+  
+  // 创建节点
+  if (w.nodes) {
+    w.nodes.forEach(n => createNode(n.type, n.x || 100, n.y || 100, n.data || {}, n.id));
+    nodeIdCounter = Math.max(...w.nodes.map(n => parseInt(n.id?.replace('node_', '') || 0))) + 1;
+  }
+  
+  // 渲染连接
+  renderConnections();
+  renderWorkflowList();
+}
+
+function newWorkflow() {
+  currentWorkflow = { id: '', name: '新工作流', enabled: true, nodes: [], connections: [] };
+  document.getElementById('workflowNameInput').value = '新工作流';
+  document.querySelectorAll('.wf-node').forEach(n => n.remove());
+  connections = [];
+  document.getElementById('connectionsSvg').innerHTML = '';
+  renderWorkflowList();
+}
+
+function updateWorkflowName() {
+  if (!currentWorkflow) return;
+  currentWorkflow.name = document.getElementById('workflowNameInput').value || '未命名';
+}
+
+async function saveWorkflow() {
+  if (!currentWorkflow) { showToast('请先创建工作流', 'error'); return; }
+  
+  // 收集节点数据
+  const nodes = [];
+  let trigger = null;
+  document.querySelectorAll('.wf-node').forEach(node => {
+    const n = {
+      id: node.id,
+      type: node.dataset.type,
+      x: parseInt(node.style.left),
+      y: parseInt(node.style.top),
+      data: JSON.parse(node.dataset.data || '{}')
+    };
+    nodes.push(n);
+    if (n.type === 'trigger') trigger = n;
+  });
+  
+  if (!trigger) { showToast('需要至少一个触发器', 'error'); return; }
+  
+  currentWorkflow.nodes = nodes;
+  currentWorkflow.connections = connections.length ? connections : currentWorkflow.connections;
+  currentWorkflow.trigger_type = trigger.data.trigger_type || 'exact';
+  currentWorkflow.trigger_content = trigger.data.trigger_content || '';
+  
+  // 从输入框获取名称
+  currentWorkflow.name = document.getElementById('workflowNameInput').value || '未命名工作流';
+  
+  // 检查是否需要主人权限（正则/消息监控/定时触发）
+  if (needsMasterAuth(currentWorkflow.trigger_type)) {
+    showMasterAuth(saveWorkflow);
+    return;
+  }
+  
+  try {
+    const res = await masterAuthFetch(API_BASE + '/save', { method: 'POST', body: JSON.stringify(currentWorkflow) });
+    const data = await res.json();
+    if (data.need_auth) { masterPassword = ''; showMasterAuth(saveWorkflow); return; }
+    if (data.success) {
+      showToast('保存成功');
+      if (data.data?.id) currentWorkflow.id = data.data.id;
+      loadWorkflows();
+    } else { showToast(data.error || '保存失败', 'error'); }
+  } catch (e) { showToast('保存失败', 'error'); }
+}
+
+async function toggleWorkflow(id) {
+  try {
+    await authFetch(API_BASE + '/toggle', { method: 'POST', body: JSON.stringify({ id }) });
+    loadWorkflows();
+  } catch (e) { showToast('操作失败', 'error'); }
+}
+
+async function deleteWorkflow(id) {
+  if (!confirm('确定删除此工作流？')) return;
+  try {
+    await authFetch(API_BASE + '/delete', { method: 'POST', body: JSON.stringify({ id }) });
+    if (currentWorkflow?.id === id) { currentWorkflow = null; document.querySelectorAll('.wf-node').forEach(n => n.remove()); }
+    loadWorkflows();
+    showToast('已删除');
+  } catch (e) { showToast('删除失败', 'error'); }
+}
+
+// AI 生成工作流
+function showAiGenerate() { openModal('aiModal'); }
+
+async function generateWorkflowByAi() {
+  const desc = document.getElementById('aiDescription').value.trim();
+  const model = document.getElementById('aiModel').value;
+  if (!desc) { showToast('请输入描述', 'error'); return; }
+  
+  const btn = document.getElementById('aiGenerateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 生成中...';
+  document.getElementById('aiResult').style.display = 'none';
+  
+  try {
+    const res = await fetch(AI_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          { role: 'system', content: WORKFLOW_SYSTEM_PROMPT },
+          { role: 'user', content: desc }
+        ]
+      })
+    });
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // 提取 JSON
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        const workflow = JSON.parse(match[0]);
+        document.getElementById('aiResult').style.display = 'block';
+        document.getElementById('aiResult').innerHTML = `<div style="color:var(--success-color);margin-bottom:8px"><i class="bi bi-check-circle"></i> 生成成功！节点数: ${workflow.nodes?.length || Object.keys(workflow.nodes || {}).length}</div><button class="btn btn-sm btn-success" onclick="applyAiWorkflow()">应用到画布</button>`;
+        window._aiWorkflow = workflow;
+      } catch (parseErr) {
+        document.getElementById('aiResult').style.display = 'block';
+        document.getElementById('aiResult').innerHTML = `<div style="color:var(--danger-color)"><i class="bi bi-exclamation-circle"></i> JSON解析失败</div>`;
+      }
+    } else {
+      document.getElementById('aiResult').style.display = 'block';
+      document.getElementById('aiResult').innerHTML = `<div style="color:var(--danger-color)"><i class="bi bi-exclamation-circle"></i> 未找到有效JSON</div>`;
+    }
+  } catch (e) {
+    document.getElementById('aiResult').style.display = 'block';
+    document.getElementById('aiResult').innerHTML = `<div style="color:var(--danger-color)"><i class="bi bi-exclamation-circle"></i> 请求失败: ${e.message || e}</div>`;
+  }
+  
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-stars"></i> 生成';
+}
+
+function applyAiWorkflow() {
+  if (!window._aiWorkflow) return;
+  const w = window._aiWorkflow;
+  
+  newWorkflow();
+  currentWorkflow.name = w.name || 'AI生成的工作流';
+  
+  // 转换节点格式（支持数组和对象两种格式）
+  const nodes = Array.isArray(w.nodes) ? w.nodes : Object.values(w.nodes || {});
+  let maxId = 0;
+  nodes.forEach((n, i) => {
+    const id = n.id || `node_${i + 1}`;
+    const numId = parseInt(id.replace('node_', '')) || 0;
+    if (numId > maxId) maxId = numId;
+    createNode(n.type, n.x || 100 + i * 180, n.y || 150, n.data || {}, id);
+  });
+  nodeIdCounter = maxId + 1;
+  
+  // 应用连接
+  if (w.connections) {
+    connections = w.connections;
+    currentWorkflow.connections = w.connections;
+    renderConnections();
+  }
+  
+  closeModal('aiModal');
+  showToast('已应用AI生成的工作流');
+}
+
+// 定时任务
+function showScheduledTasks() { loadScheduledTasks(); openModal('scheduledModal'); }
+async function loadScheduledTasks() {
+  try {
+    const res = await authFetch(API_BASE + '/scheduled/list');
+    const data = await res.json();
+    renderScheduledTasks(data.tasks || []);
+    loadWorkflowsForSelect();
+  } catch (e) { }
+}
+function renderScheduledTasks(tasks) {
+  const container = document.getElementById('scheduledTaskList');
+  if (!tasks.length) { container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12px">暂无定时任务</div>'; return; }
+  container.innerHTML = `<table class="table"><thead><tr><th>ID</th><th>工作流</th><th>执行时间</th><th>目标</th><th>状态</th><th>操作</th></tr></thead><tbody>${tasks.map(t => {
+    const schedule = t.task_type === 'daily' ? `每天 ${t.daily_time}` : `每 ${t.interval_seconds}秒`;
+    return `<tr><td>${t.id}</td><td>${t.workflow_id}</td><td>${schedule}</td><td>${t.target_type}:${t.target_id}</td><td><span class="wf-badge ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '禁用'}</span></td><td><button class="btn btn-sm" onclick="toggleTask('${t.id}')">切换</button> <button class="btn btn-sm" onclick="runTaskNow('${t.id}')">执行</button> <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">删除</button></td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+function loadWorkflowsForSelect() {
+  const sel = document.getElementById('taskWorkflowId');
+  sel.innerHTML = workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+}
+function showAddTaskForm() { document.getElementById('addTaskForm').style.display = 'block'; }
+function hideAddTaskForm() { document.getElementById('addTaskForm').style.display = 'none'; }
+function updateTaskTypeFields() {
+  const type = document.getElementById('taskType').value;
+  document.getElementById('dailyTimeGroup').style.display = type === 'daily' ? 'block' : 'none';
+  document.getElementById('intervalGroup').style.display = type === 'interval' ? 'block' : 'none';
+}
+async function addScheduledTask() {
+  if (requireMaster && !masterPassword) { showMasterAuth(addScheduledTask); return; }
+  const task = {
+    id: document.getElementById('taskId').value, workflow_id: document.getElementById('taskWorkflowId').value,
+    task_type: document.getElementById('taskType').value, daily_time: document.getElementById('taskDailyTime').value,
+    interval_seconds: parseInt(document.getElementById('taskInterval').value) || 3600,
+    target_type: document.getElementById('taskTargetType').value, target_id: document.getElementById('taskTargetId').value,
+    trigger_user_id: document.getElementById('taskTriggerUserId').value || undefined,
+    enabled: true, description: document.getElementById('taskDesc').value
+  };
+  if (!task.id || !task.target_id) { showToast('请填写完整', 'error'); return; }
+  try {
+    const res = await masterAuthFetch(API_BASE + '/scheduled/add', { method: 'POST', body: JSON.stringify(task) });
+    const data = await res.json();
+    if (data.need_auth) { masterPassword = ''; showMasterAuth(addScheduledTask); return; }
+    if (data.success) { showToast('已添加'); hideAddTaskForm(); loadScheduledTasks(); }
+    else showToast(data.error || '添加失败', 'error');
+  } catch (e) { showToast('请求失败', 'error'); }
+}
+async function toggleTask(id) {
+  if (requireMaster && !masterPassword) { showMasterAuth(() => toggleTask(id)); return; }
+  const res = await masterAuthFetch(API_BASE + '/scheduled/toggle', { method: 'POST', body: JSON.stringify({ id }) });
+  const data = await res.json();
+  if (data.need_auth) { masterPassword = ''; showMasterAuth(() => toggleTask(id)); return; }
+  loadScheduledTasks();
+}
+async function runTaskNow(id) {
+  if (requireMaster && !masterPassword) { showMasterAuth(() => runTaskNow(id)); return; }
+  const res = await masterAuthFetch(API_BASE + '/scheduled/run', { method: 'POST', body: JSON.stringify({ id }) });
+  const data = await res.json();
+  if (data.need_auth) { masterPassword = ''; showMasterAuth(() => runTaskNow(id)); return; }
+  showToast(data.success ? '已执行' : (data.error || '执行失败'), data.success ? 'success' : 'error');
+}
+async function deleteTask(id) {
+  if (!confirm('确定删除？')) return;
+  if (requireMaster && !masterPassword) { showMasterAuth(() => deleteTask(id)); return; }
+  const res = await masterAuthFetch(API_BASE + '/scheduled/delete', { method: 'POST', body: JSON.stringify({ id }) });
+  const data = await res.json();
+  if (data.need_auth) { masterPassword = ''; showMasterAuth(() => deleteTask(id)); return; }
+  loadScheduledTasks();
+  showToast('已删除');
+}
+</script>
+</body>
+</html>
