@@ -1,0 +1,44 @@
+# 依赖
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+
+# 构建输出
+dist/
+*.mjs
+index.mjs
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# TypeScript 缓存
+*.tsbuildinfo
+
+# 临时文件
+tmp/
+temp/
+
+# 测试覆盖率
+coverage/
+
+# 重复的 webui 目录（源码在 src/webui）
+webui/
