@@ -4,10 +4,7 @@ import type { PluginConfig } from '../types';
 
 // 默认配置
 export const DEFAULT_CONFIG: PluginConfig = {
-  enableWorkflow: true,
-  debug: false,
-  masters: [],  // 主人QQ列表
-  masterPassword: '',  // 主人验证密码（为空则不启用权限控制）
+  enableWorkflow: true, debug: false, masters: [], masterPassword: ''
 };
 
 // 插件状态
@@ -20,20 +17,13 @@ export const pluginState = {
   dataPath: '',
   initialized: false,
 
-  log (level: 'info' | 'debug' | 'warn' | 'error', ...args: unknown[]): void {
-    if (!this.logger) return;
-    if (level === 'debug' && !this.config.debug) return;
+  // 日志
+  log(level: 'info' | 'debug' | 'warn' | 'error', ...args: unknown[]): void {
+    if (!this.logger || (level === 'debug' && !this.config.debug)) return;
     this.logger[level]?.(...args);
   },
 
-  // 检查是否需要主人权限
-  requireMasterAuth (): boolean {
-    return !!this.config.masterPassword;
-  },
-
-  // 验证主人密码
-  verifyMaster (password: string): boolean {
-    if (!this.config.masterPassword) return true;
-    return password === this.config.masterPassword;
-  },
+  // 主人权限验证
+  requireMasterAuth(): boolean { return !!this.config.masterPassword; },
+  verifyMaster(password: string): boolean { return !this.config.masterPassword || password === this.config.masterPassword; },
 };

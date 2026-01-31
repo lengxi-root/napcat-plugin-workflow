@@ -4,53 +4,31 @@
 export interface PluginConfig {
   enableWorkflow: boolean;
   debug: boolean;
-  masters: string[];  // 主人QQ列表
-  masterPassword: string;  // 主人验证密码
+  masters: string[];
+  masterPassword: string;
   [key: string]: unknown;
 }
 
 // 工作流定义
 export interface Workflow {
-  id: string;
-  name: string;
-  trigger_type: string;
-  trigger_content: string;
-  enabled: boolean;
-  stop_propagation?: boolean;
-  nodes: WorkflowNode[];
-  connections: WorkflowConnection[];
+  id: string; name: string; trigger_type: string; trigger_content: string;
+  enabled: boolean; stop_propagation?: boolean;
+  nodes: WorkflowNode[]; connections: WorkflowConnection[];
 }
 
 // 工作流节点
-export interface WorkflowNode {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  data: Record<string, unknown>;
-}
+export interface WorkflowNode { id: string; type: string; x: number; y: number; data: Record<string, unknown>; }
 
 // 工作流连接
-export interface WorkflowConnection {
-  from_node: string;
-  from_output: string;
-  to_node: string;
-}
+export interface WorkflowConnection { from_node: string; from_output: string; to_node: string; }
 
 // 执行上下文
-export interface ExecutionContext {
-  regex_groups: string[];
-  [key: string]: unknown;
-}
+export interface ExecutionContext { regex_groups: string[]; [key: string]: unknown; }
 
 // 消息事件
 export interface MessageEvent {
-  user_id: string;
-  group_id?: string;
-  message_type: 'group' | 'private';
-  raw_message: string;
-  message: unknown[];
-  self_id?: number;
+  user_id: string; group_id?: string; message_type: 'group' | 'private';
+  raw_message: string; message: unknown[]; self_id?: number;
   sender?: { nickname?: string; card?: string; sex?: string; };
 }
 
@@ -79,40 +57,23 @@ export interface ReplyFunctions {
 
 // 节点配置
 export interface NodeConfig {
-  title: string;
-  icon: string;
-  color: string;
-  inputs: number;
-  outputs: number;
-  fields?: NodeField[];
-  customEdit?: boolean;
+  title: string; icon: string; color: string; inputs: number; outputs: number;
+  fields?: NodeField[]; customEdit?: boolean;
 }
 
 // 节点字段
 export interface NodeField {
-  name: string;
-  label: string;
-  type: 'text' | 'number' | 'select' | 'textarea';
-  options?: { value: string; label: string; }[];
-  default?: unknown;
-  placeholder?: string;
+  name: string; label: string; type: 'text' | 'number' | 'select' | 'textarea';
+  options?: { value: string; label: string; }[]; default?: unknown; placeholder?: string;
 }
 
 // 定时任务
 export interface ScheduledTask {
-  id: string;
-  workflow_id: string;
-  task_type: 'daily' | 'interval' | 'cron';
-  daily_time?: string;
-  interval_seconds?: number;
-  weekdays?: number[];
-  target_type: 'group' | 'private';
-  target_id: string;
-  enabled: boolean;
-  last_run?: string;
-  run_count: number;
-  description?: string;
+  id: string; workflow_id: string; task_type: 'daily' | 'interval' | 'cron';
+  daily_time?: string; interval_seconds?: number; weekdays?: number[];
+  target_type: 'group' | 'private'; target_id: string; trigger_user_id?: string;
+  enabled: boolean; last_run?: string; run_count: number; description?: string;
 }
 
-// 需要主人权限的触发器类型
+// 需要主人权限的触发器
 export const MASTER_ONLY_TRIGGERS = ['regex', 'any', 'scheduled', 'timer'];

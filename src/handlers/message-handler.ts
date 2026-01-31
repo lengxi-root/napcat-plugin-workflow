@@ -6,74 +6,58 @@ import { pluginState } from '../core/state';
 import { loadWorkflows } from '../services/storage';
 import { execute } from '../services/executor';
 
+// 文件转base64
+const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
+
 // 创建回复函数集
-function createReplyFunctions (event: OB11Message, ctx: NapCatPluginContext): ReplyFunctions {
-  const sendMsg = async (message: unknown[]) => {
-    const action = event.message_type === 'group' ? 'send_group_msg' : 'send_private_msg';
-    const id = event.message_type === 'group' ? { group_id: String(event.group_id) } : { user_id: String(event.user_id) };
-    try { await ctx.actions.call(action, { ...id, message } as never, ctx.adapterName, ctx.pluginManager.config); }
-    catch (e) { pluginState.log('error', '消息发送失败:', e); }
+function createReplyFunctions(event: OB11Message, ctx: NapCatPluginContext): ReplyFunctions {
+  const isGroup = event.message_type === 'group';
+  const groupId = String(event.group_id), userId = String(event.user_id);
+
+  // 通用消息发送
+  const send = async (msg: unknown[]) => {
+    const action = isGroup ? 'send_group_msg' : 'send_private_msg';
+    const params = isGroup ? { group_id: groupId, message: msg } : { user_id: userId, message: msg };
+    await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(e => pluginState.log('error', '消息发送失败:', e));
+  };
+
+  // 群管理操作
+  const groupAction = async (action: string, params: Record<string, unknown>) => {
+    if (!isGroup || !event.group_id) return;
+    await ctx.actions.call(action, { group_id: groupId, ...params } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {});
   };
 
   return {
-    reply: async (content: string) => { await sendMsg([{ type: 'text', data: { text: content } }]); },
-    replyImage: async (url: string | Buffer, text?: string) => {
-      const msg: unknown[] = [typeof url === 'string' ? { type: 'image', data: { file: url } } : { type: 'image', data: { file: `base64://${url.toString('base64')}` } }];
-      if (text) msg.push({ type: 'text', data: { text } });
-      await sendMsg(msg);
+    reply: async (c) => send([{ type: 'text', data: { text: c } }]),
+    replyImage: async (url, text) => { const msg: unknown[] = [{ type: 'image', data: { file: toFile(url) } }]; if (text) msg.push({ type: 'text', data: { text } }); await send(msg); },
+    replyVoice: async (url) => send([{ type: 'record', data: { file: toFile(url) } }]),
+    replyVideo: async (url) => send([{ type: 'video', data: { file: toFile(url) } }]),
+    replyForward: async (msgs) => {
+      const nodes = msgs.map(c => ({ type: 'node', data: { user_id: String(event.self_id || '10000'), nickname: '工作流', content: [{ type: 'text', data: { text: c } }] } }));
+      const action = isGroup ? 'send_group_forward_msg' : 'send_private_forward_msg';
+      const params = isGroup ? { group_id: groupId, messages: nodes } : { user_id: userId, messages: nodes };
+      await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {});
     },
-    replyVoice: async (url: string | Buffer) => { await sendMsg([{ type: 'record', data: { file: typeof url === 'string' ? url : `base64://${url.toString('base64')}` } }]); },
-    replyVideo: async (url: string | Buffer) => { await sendMsg([{ type: 'video', data: { file: typeof url === 'string' ? url : `base64://${url.toString('base64')}` } }]); },
-    replyForward: async (messages: string[]) => {
-      const nodes = messages.map(content => ({ type: 'node', data: { user_id: String(event.self_id || '10000'), nickname: '工作流', content: [{ type: 'text', data: { text: content } }] } }));
-      const action = event.message_type === 'group' ? 'send_group_forward_msg' : 'send_private_forward_msg';
-      const id = event.message_type === 'group' ? { group_id: String(event.group_id) } : { user_id: String(event.user_id) };
-      await ctx.actions.call(action, { ...id, messages: nodes } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    replyAt: async (content: string) => { await sendMsg([{ type: 'at', data: { qq: String(event.user_id) } }, { type: 'text', data: { text: ' ' + content } }]); },
-    replyFace: async (faceId: number) => { await sendMsg([{ type: 'face', data: { id: String(faceId) } }]); },
-    replyPoke: async (userId: string) => { await sendMsg([{ type: 'poke', data: { qq: userId } }]); },
-    replyJson: async (data: unknown) => { await sendMsg([{ type: 'json', data: { data: JSON.stringify(data) } }]); },
-    replyFile: async (url: string, name?: string) => { await sendMsg([{ type: 'file', data: { file: url, name: name || 'file' } }]); },
-    replyMusic: async (type: string, id: string) => { await sendMsg([{ type: 'music', data: { type, id } }]); },
-    groupSign: async () => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('send_group_sign', { group_id: String(event.group_id) } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {});
-    },
-    groupBan: async (userId: string, duration: number) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('set_group_ban', { group_id: String(event.group_id), user_id: userId, duration } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    groupKick: async (userId: string, rejectAdd = false) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('set_group_kick', { group_id: String(event.group_id), user_id: userId, reject_add_request: rejectAdd } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    groupWholeBan: async (enable: boolean) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('set_group_whole_ban', { group_id: String(event.group_id), enable } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    groupSetCard: async (userId: string, card: string) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('set_group_card', { group_id: String(event.group_id), user_id: userId, card } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    groupSetAdmin: async (userId: string, enable: boolean) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('set_group_admin', { group_id: String(event.group_id), user_id: userId, enable } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    groupNotice: async (content: string) => {
-      if (event.message_type !== 'group' || !event.group_id) return;
-      await ctx.actions.call('_send_group_notice', { group_id: String(event.group_id), content } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
-    },
-    callApi: async (action: string, params: Record<string, unknown>) => {
-      return await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => null);
-    },
+    replyAt: async (c) => send([{ type: 'at', data: { qq: userId } }, { type: 'text', data: { text: ' ' + c } }]),
+    replyFace: async (id) => send([{ type: 'face', data: { id: String(id) } }]),
+    replyPoke: async (uid) => send([{ type: 'poke', data: { qq: uid } }]),
+    replyJson: async (d) => send([{ type: 'json', data: { data: JSON.stringify(d) } }]),
+    replyFile: async (url, name) => send([{ type: 'file', data: { file: url, name: name || 'file' } }]),
+    replyMusic: async (type, id) => send([{ type: 'music', data: { type, id } }]),
+    groupSign: () => groupAction('send_group_sign', {}),
+    groupBan: (uid, duration) => groupAction('set_group_ban', { user_id: uid, duration }),
+    groupKick: (uid, reject = false) => groupAction('set_group_kick', { user_id: uid, reject_add_request: reject }),
+    groupWholeBan: (enable) => groupAction('set_group_whole_ban', { enable }),
+    groupSetCard: (uid, card) => groupAction('set_group_card', { user_id: uid, card }),
+    groupSetAdmin: (uid, enable) => groupAction('set_group_admin', { user_id: uid, enable }),
+    groupNotice: (c) => groupAction('_send_group_notice', { content: c }),
+    callApi: async (action, params) => await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => null),
   };
 }
 
 // 处理消息
-export async function handleMessage (event: OB11Message, ctx: NapCatPluginContext): Promise<boolean> {
+export async function handleMessage(event: OB11Message, ctx: NapCatPluginContext): Promise<boolean> {
   if (!pluginState.config.enableWorkflow) return false;
-
   const content = (event.raw_message || '').trim();
   if (!content) return false;
 
@@ -86,23 +70,20 @@ export async function handleMessage (event: OB11Message, ctx: NapCatPluginContex
     message_type: event.message_type as 'group' | 'private',
     raw_message: event.raw_message || '',
     message: event.message as unknown[],
-    self_id: (event as { self_id?: number; }).self_id,
+    self_id: (event as { self_id?: number }).self_id,
     sender: event.sender as MessageEvent['sender'],
   };
 
   const reply = createReplyFunctions(event, ctx);
 
-  for (const workflow of workflows) {
-    if (!workflow.enabled) continue;
+  for (const wf of workflows) {
+    if (!wf.enabled) continue;
     try {
-      const executed = await execute(workflow, msgEvent, content, reply);
-      if (executed) {
-        pluginState.log('debug', `工作流 [${workflow.name}] 执行成功`);
-        if (workflow.stop_propagation) return true;
+      if (await execute(wf, msgEvent, content, reply)) {
+        pluginState.log('debug', `工作流 [${wf.name}] 执行成功`);
+        if (wf.stop_propagation) return true;
       }
-    } catch (e) {
-      pluginState.log('error', `工作流 [${workflow.name}] 执行失败:`, e);
-    }
+    } catch (e) { pluginState.log('error', `工作流 [${wf.name}] 执行失败:`, e); }
   }
   return false;
 }
