@@ -51,6 +51,7 @@ function createReplyFunctions(event: OB11Message, ctx: NapCatPluginContext): Rep
     groupSetCard: (uid, card) => groupAction('set_group_card', { user_id: uid, card }),
     groupSetAdmin: (uid, enable) => groupAction('set_group_admin', { user_id: uid, enable }),
     groupNotice: (c) => groupAction('_send_group_notice', { content: c }),
+    recallMsg: async (msgId) => { await ctx.actions.call('delete_msg', { message_id: msgId } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {}); },
     callApi: async (action, params) => await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => null),
   };
 }
@@ -70,6 +71,7 @@ export async function handleMessage(event: OB11Message, ctx: NapCatPluginContext
     message_type: event.message_type as 'group' | 'private',
     raw_message: event.raw_message || '',
     message: event.message as unknown[],
+    message_id: (event as { message_id?: string | number }).message_id,
     self_id: (event as { self_id?: number }).self_id,
     sender: event.sender as MessageEvent['sender'],
   };

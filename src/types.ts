@@ -28,7 +28,7 @@ export interface ExecutionContext { regex_groups: string[]; [key: string]: unkno
 // 消息事件
 export interface MessageEvent {
   user_id: string; group_id?: string; message_type: 'group' | 'private';
-  raw_message: string; message: unknown[]; self_id?: number;
+  raw_message: string; message: unknown[]; self_id?: number; message_id?: string | number;
   sender?: { nickname?: string; card?: string; sex?: string; };
 }
 
@@ -52,6 +52,7 @@ export interface ReplyFunctions {
   groupSetCard: (userId: string, card: string) => Promise<void>;
   groupSetAdmin: (userId: string, enable: boolean) => Promise<void>;
   groupNotice: (content: string) => Promise<void>;
+  recallMsg: (messageId: string) => Promise<void>;
   callApi: (action: string, params: Record<string, unknown>) => Promise<unknown>;
 }
 

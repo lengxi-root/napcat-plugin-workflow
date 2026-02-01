@@ -4,7 +4,7 @@ import { pluginState } from '../core/state';
 import * as storage from './storage';
 
 // 检查触发条件
-function checkTrigger(node: WorkflowNode, content: string): string[] | null {
+function checkTrigger (node: WorkflowNode, content: string): string[] | null {
   const { trigger_type: type = 'exact', trigger_content, trigger_value } = node.data as Record<string, string>;
   const val = trigger_content || trigger_value || '';
 
@@ -22,7 +22,7 @@ function checkTrigger(node: WorkflowNode, content: string): string[] | null {
 }
 
 // 检查条件
-function checkCondition(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): boolean {
+function checkCondition (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): boolean {
   const type = (data.condition_type || 'contains') as string;
   const val = replaceVars((data.condition_value || '') as string, event, content, ctx);
   const varName = (data.var_name || '') as string;
@@ -54,7 +54,7 @@ function checkCondition(data: Record<string, unknown>, event: MessageEvent, cont
 }
 
 // 执行存储操作
-function execStorage(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
+function execStorage (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
   const type = (data.storage_type || 'get') as string;
   const key = replaceVars((data.storage_key || '') as string, event, content, ctx);
   const val = replaceVars((data.storage_value || '') as string, event, content, ctx);
@@ -70,7 +70,7 @@ function execStorage(data: Record<string, unknown>, event: MessageEvent, content
 }
 
 // 执行全局存储
-function execGlobalStorage(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
+function execGlobalStorage (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
   const type = (data.storage_type || 'get') as string;
   const key = replaceVars((data.storage_key || '') as string, event, content, ctx);
   const val = replaceVars((data.storage_value || '') as string, event, content, ctx);
@@ -85,7 +85,7 @@ function execGlobalStorage(data: Record<string, unknown>, event: MessageEvent, c
 }
 
 // 执行排行榜
-function execLeaderboard(data: Record<string, unknown>, event: MessageEvent, ctx: ExecutionContext): void {
+function execLeaderboard (data: Record<string, unknown>, event: MessageEvent, ctx: ExecutionContext): void {
   const type = (data.leaderboard_type || 'top') as string, key = (data.leaderboard_key || 'score') as string;
   const limit = Number(data.limit || 10), asc = data.ascending === 'true' || data.ascending === true;
   switch (type) {
@@ -96,7 +96,7 @@ function execLeaderboard(data: Record<string, unknown>, event: MessageEvent, ctx
 }
 
 // 执行数学运算
-function execMath(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
+function execMath (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
   const type = (data.math_type || 'add') as string;
   const a = Number(replaceVars((data.operand1 || '0') as string, event, content, ctx));
   const b = Number(replaceVars((data.operand2 || '0') as string, event, content, ctx));
@@ -109,7 +109,7 @@ function execMath(data: Record<string, unknown>, event: MessageEvent, content: s
 }
 
 // 执行字符串操作
-function execString(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
+function execString (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
   const type = (data.string_type || 'concat') as string;
   const s1 = replaceVars((data.input1 || '') as string, event, content, ctx);
   const s2 = replaceVars((data.input2 || '') as string, event, content, ctx);
@@ -131,7 +131,7 @@ function execString(data: Record<string, unknown>, event: MessageEvent, content:
 }
 
 // 执行随机抽取
-function execListRandom(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
+function execListRandom (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext): void {
   const items = replaceVars((data.list_items || '') as string, event, content, ctx).split('|').map(s => s.trim()).filter(Boolean);
   const resVar = (data.result_var || 'list_result') as string, idxVar = (data.index_var || 'list_index') as string;
   if (!items.length) { ctx[resVar] = ''; ctx[idxVar] = -1; return; }
@@ -148,7 +148,7 @@ function execListRandom(data: Record<string, unknown>, event: MessageEvent, cont
 }
 
 // 执行动作
-async function execAction(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<void> {
+async function execAction (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<void> {
   const type = (data.action_type || 'reply_text') as string;
   const val = replaceVars((data.action_value || '') as string, event, content, ctx);
   const rv = (k: string, d = '') => replaceVars((data[k] || d) as string, event, content, ctx);
@@ -169,19 +169,20 @@ async function execAction(data: Record<string, unknown>, event: MessageEvent, co
     case 'custom_api': await execCustomApi(data, event, content, ctx, reply); break;
     case 'math': execMath(data, event, content, ctx); break;
     case 'string_op': execString(data, event, content, ctx); break;
-    case 'group_sign': await reply.groupSign().catch(() => {}); break;
-    case 'group_ban': await reply.groupBan(rv('target_user', '{user_id}'), parseInt(rv('ban_duration', '600')) || 600).catch(() => {}); break;
-    case 'group_kick': await reply.groupKick(rv('target_user', '{user_id}'), toBool('reject_add')).catch(() => {}); break;
-    case 'group_whole_ban': await reply.groupWholeBan(toBool('enable_ban')).catch(() => {}); break;
-    case 'group_set_card': await reply.groupSetCard(rv('target_user', '{user_id}'), rv('card_value')).catch(() => {}); break;
-    case 'group_set_admin': await reply.groupSetAdmin(rv('target_user', '{user_id}'), toBool('enable_admin')).catch(() => {}); break;
-    case 'group_notice': await reply.groupNotice(val).catch(() => {}); break;
-    case 'call_api': { let p: Record<string, unknown> = {}; try { p = JSON.parse(rv('api_params', '{}')); } catch {} const r = await reply.callApi(rv('api_action'), p); if (data.result_var) ctx[data.result_var as string] = r; break; }
+    case 'group_sign': await reply.groupSign().catch(() => { }); break;
+    case 'group_ban': await reply.groupBan(rv('target_user', '{user_id}'), parseInt(rv('ban_duration', '600')) || 600).catch(() => { }); break;
+    case 'group_kick': await reply.groupKick(rv('target_user', '{user_id}'), toBool('reject_add')).catch(() => { }); break;
+    case 'group_whole_ban': await reply.groupWholeBan(toBool('enable_ban')).catch(() => { }); break;
+    case 'group_set_card': await reply.groupSetCard(rv('target_user', '{user_id}'), rv('card_value')).catch(() => { }); break;
+    case 'group_set_admin': await reply.groupSetAdmin(rv('target_user', '{user_id}'), toBool('enable_admin')).catch(() => { }); break;
+    case 'group_notice': await reply.groupNotice(val).catch(() => { }); break;
+    case 'recall_msg': await reply.recallMsg(rv('message_id', '{message_id}')).catch(() => { }); break;
+    case 'call_api': { let p: Record<string, unknown> = {}; try { p = JSON.parse(rv('api_params', '{}')); } catch { } const r = await reply.callApi(rv('api_action'), p).catch(() => null); if (data.result_var) ctx[data.result_var as string] = r; break; }
   }
 }
 
 // 执行自定义API
-async function execCustomApi(data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<void> {
+async function execCustomApi (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<void> {
   const url = replaceVars((data.api_url || '') as string, event, content, ctx);
   const method = ((data.api_method || 'GET') as string).toUpperCase();
   const hdrs: Record<string, string> = { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' };
@@ -214,7 +215,7 @@ async function execCustomApi(data: Record<string, unknown>, event: MessageEvent,
 }
 
 // 处理模板
-function processTemplate(tpl: string, event: MessageEvent, content: string, ctx: ExecutionContext): string {
+function processTemplate (tpl: string, event: MessageEvent, content: string, ctx: ExecutionContext): string {
   let r = replaceVars(tpl, event, content, ctx);
   const json = ctx.api_json as Record<string, unknown> | undefined;
   if (json) r = r.replace(/\{([^}]+)\}/g, (m, p) => ['user_id', 'group_id', 'content', 'message', 'api_response', 'api_status'].includes(p) || p.startsWith('$') ? m : String(extractPath(json, p.trim())));
@@ -222,7 +223,7 @@ function processTemplate(tpl: string, event: MessageEvent, content: string, ctx:
 }
 
 // 提取JSON路径
-function extractPath(data: Record<string, unknown>, path: string): unknown {
+function extractPath (data: Record<string, unknown>, path: string): unknown {
   try {
     let r: unknown = data;
     for (const p of path.split('.')) { const m = p.match(/^([^[]+)(?:\[(\d+)\])?$/); if (!m) return ''; if (m[1]) r = (r as Record<string, unknown>)?.[m[1]]; if (m[2] !== undefined) r = (r as unknown[])?.[parseInt(m[2])]; }
@@ -231,11 +232,11 @@ function extractPath(data: Record<string, unknown>, path: string): unknown {
 }
 
 // 替换变量
-function replaceVars(text: string, event: MessageEvent, content: string, ctx: ExecutionContext): string {
+function replaceVars (text: string, event: MessageEvent, content: string, ctx: ExecutionContext): string {
   if (!text || !text.includes('{')) return text;
   const n = new Date(), d = n.toISOString().split('T')[0];
   const vars: Record<string, string> = {
-    '{user_id}': event.user_id, '{group_id}': event.group_id || '', '{content}': content, '{message}': content,
+    '{user_id}': event.user_id, '{group_id}': event.group_id || '', '{message_id}': String(event.message_id || ''), '{content}': content, '{message}': content,
     '{date}': d, '{today}': d, '{time}': n.toTimeString().split(' ')[0], '{datetime}': n.toISOString().replace('T', ' ').split('.')[0],
     '{timestamp}': String(Math.floor(Date.now() / 1000)), '{year}': String(n.getFullYear()), '{month}': String(n.getMonth() + 1),
     '{day}': String(n.getDate()), '{hour}': String(n.getHours()), '{minute}': String(n.getMinutes()), '{weekday}': String(n.getDay()),
@@ -251,7 +252,7 @@ function replaceVars(text: string, event: MessageEvent, content: string, ctx: Ex
 }
 
 // 解析值
-function parseValue(v: string): unknown {
+function parseValue (v: string): unknown {
   if (/^-?\d+$/.test(v)) return parseInt(v);
   if (/^-?\d+\.\d+$/.test(v)) return parseFloat(v);
   if (v === 'true') return true;
@@ -260,7 +261,7 @@ function parseValue(v: string): unknown {
 }
 
 // 规范化连接格式
-function normalizeConns(wf: Workflow): WorkflowConnection[] {
+function normalizeConns (wf: Workflow): WorkflowConnection[] {
   return (wf.connections || []).map(c => {
     let out = (c as any).from_output || (c as any).port || 'output_1';
     if (out === 'output') out = 'output_1';
@@ -271,7 +272,7 @@ function normalizeConns(wf: Workflow): WorkflowConnection[] {
 }
 
 // 从节点执行
-async function runNode(id: string, nodes: Map<string, WorkflowNode>, conns: WorkflowConnection[], event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<boolean> {
+async function runNode (id: string, nodes: Map<string, WorkflowNode>, conns: WorkflowConnection[], event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<boolean> {
   const node = nodes.get(id);
   if (!node) return false;
   const { type, data } = node;
@@ -299,7 +300,7 @@ async function runNode(id: string, nodes: Map<string, WorkflowNode>, conns: Work
 }
 
 // 执行工作流
-export async function execute(wf: Workflow, event: MessageEvent, content: string, reply: ReplyFunctions): Promise<boolean> {
+export async function execute (wf: Workflow, event: MessageEvent, content: string, reply: ReplyFunctions): Promise<boolean> {
   const nodes = new Map<string, WorkflowNode>((wf.nodes || []).map(n => [n.id, n]));
   const conns = normalizeConns(wf);
   const triggers = Array.from(nodes.values()).filter(n => n.type === 'trigger');
@@ -312,7 +313,7 @@ export async function execute(wf: Workflow, event: MessageEvent, content: string
 }
 
 // 从触发器执行（定时任务）
-export async function executeFromTrigger(wf: Workflow, event: MessageEvent, reply: ReplyFunctions): Promise<boolean> {
+export async function executeFromTrigger (wf: Workflow, event: MessageEvent, reply: ReplyFunctions): Promise<boolean> {
   const nodes = new Map<string, WorkflowNode>((wf.nodes || []).map(n => [n.id, n]));
   const conns = normalizeConns(wf);
   const triggers = Array.from(nodes.values()).filter(n => n.type === 'trigger');

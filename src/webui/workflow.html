@@ -1025,6 +1025,7 @@
 - group_whole_ban: 全员禁言 {action_type:"group_whole_ban",enable_ban:"true/false"}
 - group_set_card: 设置群名片 {action_type:"group_set_card",target_user:"{user_id}",card_value:"新名片"}
 - group_notice: 发群公告 {action_type:"group_notice",action_value:"公告内容"}
+- recall_msg: 撤回消息 {action_type:"recall_msg",message_id:"{message_id}"}
 - call_api: 调用NapCatAPI {action_type:"call_api",api_action:"send_group_sign",api_params:'{"group_id":"{group_id}"}',result_var:"result"}
 
 ## 变量: {user_id} {group_id} {content} {$1} {$2} {today} {time} {timestamp} {random} {storage.键} {global.键} {math_result} {api_result} {api_json.字段}
@@ -1096,6 +1097,7 @@
       group_whole_ban: { label: '全员禁言', fields: [{ name: 'enable_ban', label: '开关', type: 'select', options: [{ value: 'true', label: '开启禁言' }, { value: 'false', label: '关闭禁言' }] }] },
       group_set_card: { label: '设置群名片', fields: [{ name: 'target_user', label: '目标用户', type: 'text', placeholder: '留空则为发送者 {user_id}' }, { name: 'card_value', label: '群名片', type: 'text', placeholder: '新的群名片' }] },
       group_notice: { label: '发群公告', fields: [{ name: 'action_value', label: '公告内容', type: 'textarea', placeholder: '公告文本' }] },
+      recall_msg: { label: '撤回消息', fields: [{ name: 'message_id', label: '消息ID', type: 'text', placeholder: '留空撤回触发消息 {message_id}' }] },
       call_api: { label: '调用NapCat API', fields: [{ name: 'api_action', label: 'API名称', type: 'text', placeholder: '如 send_group_sign' }, { name: 'api_params', label: '参数(JSON)', type: 'textarea', placeholder: '{"group_id":"{group_id}"}' }, { name: 'result_var', label: '结果变量', type: 'text', placeholder: '可选' }] }
     };
 

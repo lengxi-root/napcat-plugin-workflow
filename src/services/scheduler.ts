@@ -17,14 +17,14 @@ let caller: ((action: string, params: Record<string, unknown>) => Promise<unknow
 const tasksFile = () => path.join(pluginState.dataPath, 'scheduled_tasks.json');
 
 // 存储操作
-function load(): void {
+function load (): void {
   try {
     const f = tasksFile();
     if (fs.existsSync(f)) tasks = new Map(Object.entries(JSON.parse(fs.readFileSync(f, 'utf-8'))));
   } catch (e) { pluginState.log('error', '加载定时任务失败:', e); }
 }
 
-function save(): void {
+function save (): void {
   try {
     const f = tasksFile(), d = path.dirname(f);
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -33,15 +33,15 @@ function save(): void {
 }
 
 // 外部接口
-export function setMessageSender(s: (type: string, id: string, msg: unknown[]) => Promise<void>, c?: (action: string, params: Record<string, unknown>) => Promise<unknown>): void {
+export function setMessageSender (s: (type: string, id: string, msg: unknown[]) => Promise<void>, c?: (action: string, params: Record<string, unknown>) => Promise<unknown>): void {
   sender = s; if (c) caller = c;
 }
 
-export function startScheduler(): void { if (timer) return; load(); timer = setInterval(check, 60000); pluginState.log('info', '定时任务调度器已启动'); }
-export function stopScheduler(): void { if (timer) { clearInterval(timer); timer = null; } }
+export function startScheduler (): void { if (timer) return; load(); timer = setInterval(check, 60000); pluginState.log('info', '定时任务调度器已启动'); }
+export function stopScheduler (): void { if (timer) { clearInterval(timer); timer = null; } }
 
 // 检查并执行任务
-async function check(): Promise<void> {
+async function check (): Promise<void> {
   const now = new Date(), time = now.toTimeString().slice(0, 5), day = now.getDay();
 
   for (const [id, t] of tasks) {
@@ -59,7 +59,7 @@ async function check(): Promise<void> {
 }
 
 // 执行任务
-async function exec(id: string): Promise<void> {
+async function exec (id: string): Promise<void> {
   const t = tasks.get(id);
   if (!t || !sender) return;
   const wf = loadWorkflows().find(w => w.id === t.workflow_id);
@@ -78,10 +78,10 @@ async function exec(id: string): Promise<void> {
 // 创建回复函数
 const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
 
-function createReply(type: string, id: string): ReplyFunctions {
-  const send = async (msg: unknown[]) => { if (sender) await sender(type, id, msg); };
-  const call = async (action: string, params: Record<string, unknown>) => caller ? await caller(action, params) : null;
-  const groupCall = async (action: string, params: Record<string, unknown>) => { if (type === 'group') await call(action, { group_id: id, ...params }); };
+function createReply (type: string, id: string): ReplyFunctions {
+  const send = async (msg: unknown[]) => { if (sender) await sender(type, id, msg).catch(() => { }); };
+  const call = async (action: string, params: Record<string, unknown>) => caller ? await caller(action, params).catch(() => null) : null;
+  const groupCall = async (action: string, params: Record<string, unknown>) => { if (type === 'group') await call(action, { group_id: id, ...params }).catch(() => { }); };
 
   return {
     reply: async (c) => send([{ type: 'text', data: { text: c } }]),
@@ -91,7 +91,7 @@ function createReply(type: string, id: string): ReplyFunctions {
     replyForward: async (msgs) => send(msgs.map(c => ({ type: 'node', data: { user_id: '10000', nickname: '工作流', content: [{ type: 'text', data: { text: c } }] } }))),
     replyAt: async (c) => send([{ type: 'text', data: { text: c } }]),
     replyFace: async (fid) => send([{ type: 'face', data: { id: String(fid) } }]),
-    replyPoke: async () => {},
+    replyPoke: async () => { },
     replyJson: async (d) => send([{ type: 'json', data: { data: JSON.stringify(d) } }]),
     replyFile: async (url, name) => send([{ type: 'file', data: { file: url, name: name || 'file' } }]),
     replyMusic: async (t, mid) => send([{ type: 'music', data: { type: t, id: mid } }]),
@@ -102,15 +102,16 @@ function createReply(type: string, id: string): ReplyFunctions {
     groupSetCard: (uid, card) => groupCall('set_group_card', { user_id: uid, card }),
     groupSetAdmin: (uid, enable) => groupCall('set_group_admin', { user_id: uid, enable }),
     groupNotice: (c) => groupCall('_send_group_notice', { content: c }),
+    recallMsg: async (msgId) => { await call('delete_msg', { message_id: msgId }).catch(() => {}); },
     callApi: call,
   };
 }
 
 // ==================== API ====================
 
-type Result = { success: boolean; message?: string; error?: string; enabled?: boolean };
+type Result = { success: boolean; message?: string; error?: string; enabled?: boolean; };
 
-export function addScheduledTask(t: Omit<ScheduledTask, 'run_count'>): Result {
+export function addScheduledTask (t: Omit<ScheduledTask, 'run_count'>): Result {
   if (!t.id || !t.workflow_id || !t.target_id) return { success: false, error: '缺少参数' };
   if (t.task_type === 'daily' && !t.daily_time) return { success: false, error: '需指定 daily_time' };
   if (t.task_type === 'interval' && (!t.interval_seconds || t.interval_seconds < 60)) return { success: false, error: 'interval_seconds >= 60' };
@@ -119,22 +120,22 @@ export function addScheduledTask(t: Omit<ScheduledTask, 'run_count'>): Result {
   return { success: true, message: `任务 [${t.id}] 已添加` };
 }
 
-export function removeScheduledTask(id: string): Result {
+export function removeScheduledTask (id: string): Result {
   if (tasks.has(id)) { tasks.delete(id); save(); return { success: true, message: '已删除' }; }
   return { success: false, error: '任务不存在' };
 }
 
-export function toggleScheduledTask(id: string): Result {
+export function toggleScheduledTask (id: string): Result {
   const t = tasks.get(id);
   if (!t) return { success: false, error: '任务不存在' };
   t.enabled = !t.enabled; save();
   return { success: true, enabled: t.enabled };
 }
 
-export function getAllScheduledTasks(): ScheduledTask[] { return Array.from(tasks.values()); }
-export function getScheduledTask(id: string): ScheduledTask | undefined { return tasks.get(id); }
+export function getAllScheduledTasks (): ScheduledTask[] { return Array.from(tasks.values()); }
+export function getScheduledTask (id: string): ScheduledTask | undefined { return tasks.get(id); }
 
-export async function runScheduledTaskNow(id: string): Promise<Result> {
+export async function runScheduledTaskNow (id: string): Promise<Result> {
   if (!tasks.has(id)) return { success: false, error: '任务不存在' };
   await exec(id);
   return { success: true, message: '已执行' };
