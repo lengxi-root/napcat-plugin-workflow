@@ -1411,7 +1411,7 @@
         const res = await fetch(AI_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'gpt-5', type: 1, messages: [{ role: 'user', content: prompt }] })
+          body: JSON.stringify({ model: 'gpt-5', type: 1, bot_id: 'webui', user_id: 'webui', messages: [{ role: 'user', content: prompt }] })
         });
         const data = await res.json();
         const content = data.choices?.[0]?.message?.content || '';
@@ -1667,6 +1667,8 @@
           body: JSON.stringify({
             model: model,
             type: getApiType(model),
+            bot_id: 'webui',
+            user_id: 'webui',
             messages: [
               { role: 'system', content: WORKFLOW_SYSTEM_PROMPT },
               { role: 'user', content: desc }
