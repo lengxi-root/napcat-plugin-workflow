@@ -53,11 +53,17 @@ const plugin_init: PluginModule['plugin_init'] = async (ctx: NapCatPluginContext
     callAction
   );
 
+  // 获取机器人QQ号
+  try {
+    const loginInfo = await ctx.actions.call('get_login_info', {}, ctx.adapterName, ctx.pluginManager.config) as { user_id?: number | string } | undefined;
+    pluginState.botId = loginInfo?.user_id ? String(loginInfo.user_id) : '';
+  } catch { /* ignore */ }
+
   // 启动服务
   startWorkflowWatcher();
   startScheduler();
   pluginState.initialized = true;
-  pluginState.log('info', '工作流插件初始化完成');
+  pluginState.log('info', `工作流插件初始化完成${pluginState.botId ? ` (Bot: ${pluginState.botId})` : ''}`);
 };
 
 // 配置读写

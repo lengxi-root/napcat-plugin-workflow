@@ -16,6 +16,7 @@ export const pluginState = {
   networkConfig: null as unknown,
   dataPath: '',
   initialized: false,
+  botId: '' as string,  // 机器人QQ号
 
   // 日志
   log(level: 'info' | 'debug' | 'warn' | 'error', ...args: unknown[]): void {
@@ -26,4 +27,9 @@ export const pluginState = {
   // 主人权限验证
   requireMasterAuth(): boolean { return !!this.config.masterPassword; },
   verifyMaster(password: string): boolean { return !this.config.masterPassword || password === this.config.masterPassword; },
+
+  // 获取请求附加信息（用于 API 调用）
+  getRequestMeta(): { bot_id: string; user_id: string } {
+    return { bot_id: this.botId, user_id: this.botId };
+  },
 };

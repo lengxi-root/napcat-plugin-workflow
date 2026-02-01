@@ -185,11 +185,22 @@ async function execAction (data: Record<string, unknown>, event: MessageEvent, c
 async function execCustomApi (data: Record<string, unknown>, event: MessageEvent, content: string, ctx: ExecutionContext, reply: ReplyFunctions): Promise<void> {
   const url = replaceVars((data.api_url || '') as string, event, content, ctx);
   const method = ((data.api_method || 'GET') as string).toUpperCase();
-  const hdrs: Record<string, string> = { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' };
+  const hdrs: Record<string, string> = { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', 'Content-Type': 'application/json' };
   const hdrStr = (data.api_headers || '') as string;
   if (hdrStr) try { Object.assign(hdrs, JSON.parse(hdrStr)); } catch { hdrStr.split('\n').forEach(l => { const [k, v] = l.split(':'); if (k && v) hdrs[k.trim()] = replaceVars(v.trim(), event, content, ctx); }); }
   const bodyStr = (data.api_body || '') as string;
-  const body = bodyStr && ['POST', 'PUT', 'PATCH'].includes(method) ? replaceVars(bodyStr, event, content, ctx) : undefined;
+  
+  // 构建请求体，自动添加 bot_id 和 user_id
+  let body: string | undefined;
+  if (bodyStr && ['POST', 'PUT', 'PATCH'].includes(method)) {
+    const bodyContent = replaceVars(bodyStr, event, content, ctx);
+    try {
+      const bodyJson = JSON.parse(bodyContent);
+      const meta = pluginState.getRequestMeta();
+      if (meta.bot_id) { bodyJson.bot_id = meta.bot_id; bodyJson.user_id = meta.user_id; }
+      body = JSON.stringify(bodyJson);
+    } catch { body = bodyContent; }
+  }
 
   try {
     const r = await fetch(url, { method, headers: hdrs, body, signal: AbortSignal.timeout(Number(data.api_timeout || 10) * 1000) });
