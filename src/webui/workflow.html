@@ -861,7 +861,8 @@
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">描述你想要的工作流功能</label>
-          <textarea class="form-control" id="aiDescription" rows="4" placeholder="例如：当用户发送「签到」时，判断今天是否已签到，未签到则随机获得5-10积分，已签到则提示明天再来"></textarea>
+          <textarea class="form-control" id="aiDescription" rows="4"
+            placeholder="例如：当用户发送「签到」时，判断今天是否已签到，未签到则随机获得5-10积分，已签到则提示明天再来"></textarea>
         </div>
         <div class="form-group">
           <label class="form-label">AI模型</label>
@@ -899,8 +900,8 @@
   </div>
 
   <script>
-    // API 路由在 /api/Plugin/ext/ 下，页面路由在 /api/Plugin/page/ 下
-    const API_BASE = window.location.pathname.replace('/page/', '/ext/').replace(/\/[^\/]*$/, '');
+    // API 路由在 /plugin/{pluginId}/api/ 下，页面路由在 /plugin/{pluginId}/page/ 下
+    const API_BASE = window.location.pathname.replace('/page/', '/api/').replace(/\/[^\/]*$/, '');
     const AI_API = 'https://i.elaina.vin/api/openai/v1/chat/completions';
 
     // 主接口模型（type=1）和备用接口模型（type=2）
@@ -1688,7 +1689,7 @@
             window._aiWorkflow = workflow;
           } catch (parseErr) {
             document.getElementById('aiResult').style.display = 'block';
-            document.getElementById('aiResult').innerHTML = `<div style="color:var(--danger-color)"><i class="bi bi-exclamation-circle"></i> JSON解析失败: ${parseErr.message}</div><pre style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;max-height:200px;overflow:auto;white-space:pre-wrap">${match[0].substring(0,500)}</pre>`;
+            document.getElementById('aiResult').innerHTML = `<div style="color:var(--danger-color)"><i class="bi bi-exclamation-circle"></i> JSON解析失败: ${parseErr.message}</div><pre style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;max-height:200px;overflow:auto;white-space:pre-wrap">${match[0].substring(0, 500)}</pre>`;
           }
         } else {
           document.getElementById('aiResult').style.display = 'block';
@@ -1807,7 +1808,7 @@
     }
 
     // 显示导出弹窗
-    function showExportModal(title, content) {
+    function showExportModal (title, content) {
       let modal = document.getElementById('exportModal');
       if (!modal) {
         modal = document.createElement('div');
@@ -1836,7 +1837,7 @@
     }
 
     // 复制导出内容
-    async function copyExport() {
+    async function copyExport () {
       const content = document.getElementById('exportModalContent').value;
       try {
         await navigator.clipboard.writeText(content);
@@ -1849,14 +1850,14 @@
     }
 
     // 导出单个工作流
-    function exportWorkflow(id) {
+    function exportWorkflow (id) {
       const w = workflows.find(x => x.id === id);
       if (!w) { showToast('工作流不存在', 'error'); return; }
       showExportModal(`导出: ${w.name || w.id}`, JSON.stringify(w, null, 2));
     }
 
     // 导出全部工作流
-    function exportAllWorkflows() {
+    function exportAllWorkflows () {
       if (!workflows.length) { showToast('暂无工作流', 'error'); return; }
       const data = { workflows, exportTime: new Date().toISOString(), version: '1.0' };
       showExportModal(`导出全部 (${workflows.length}个)`, JSON.stringify(data, null, 2));
@@ -1864,7 +1865,7 @@
 
     // 触发导入文件选择
     // 显示导入弹窗
-    function importWorkflows() {
+    function importWorkflows () {
       let modal = document.getElementById('importModal');
       if (!modal) {
         modal = document.createElement('div');
@@ -1893,7 +1894,7 @@
     }
 
     // 执行导入
-    async function doImport() {
+    async function doImport () {
       const text = document.getElementById('importModalContent').value.trim();
       if (!text) { showToast('请输入 JSON 内容', 'error'); return; }
       try {

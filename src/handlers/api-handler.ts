@@ -10,7 +10,7 @@ import * as scheduler from '../services/scheduler';
 const genId = () => 'wf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 // 主人权限验证
-function checkAuth(req: PluginHttpRequest, res: PluginHttpResponse): boolean {
+function checkAuth (req: PluginHttpRequest, res: PluginHttpResponse): boolean {
   if (!pluginState.requireMasterAuth()) return true;
   const pwd = (req.body as any)?.master_password || req.query?.master_password;
   if (!pluginState.verifyMaster(pwd)) { res.json({ success: false, error: '需要主人权限', need_auth: true }); return false; }
@@ -18,26 +18,26 @@ function checkAuth(req: PluginHttpRequest, res: PluginHttpResponse): boolean {
 }
 
 // 检查工作流是否需要主人权限
-function needsMaster(wf: Partial<Workflow>): boolean {
+function needsMaster (wf: Partial<Workflow>): boolean {
   if (MASTER_ONLY_TRIGGERS.includes(wf.trigger_type || '')) return true;
   return (wf.nodes || []).some(n => n.type === 'trigger' && MASTER_ONLY_TRIGGERS.includes(String(n.data?.trigger_type || '')));
 }
 
-// 注册API路由
-export function registerApiRoutes(router: PluginRouterRegistry): void {
+// 注册API路由（使用NoAuth方法注册到 /plugin/{pluginId}/api/ 路径）
+export function registerApiRoutes (router: PluginRouterRegistry): void {
   // 配置和验证
-  router.get('/config', (_, res) => res.json({ success: true, require_master: pluginState.requireMasterAuth(), master_only_triggers: MASTER_ONLY_TRIGGERS }));
-  router.post('/verify_master', (req, res) => {
-    const { password } = req.body as { password?: string };
+  router.getNoAuth('/config', (_, res) => res.json({ success: true, require_master: pluginState.requireMasterAuth(), master_only_triggers: MASTER_ONLY_TRIGGERS }));
+  router.postNoAuth('/verify_master', (req, res) => {
+    const { password } = req.body as { password?: string; };
     res.json(pluginState.verifyMaster(password || '') ? { success: true, message: '验证成功' } : { success: false, error: '密码错误' });
   });
 
   // 工作流CRUD
-  router.get('/list', (_, res) => res.json({ success: true, workflows: storage.loadWorkflows() }));
+  router.getNoAuth('/list', (_, res) => res.json({ success: true, workflows: storage.loadWorkflows() }));
 
-  router.post('/save', (req, res) => {
+  router.postNoAuth('/save', (req, res) => {
     try {
-      const data = req.body as Partial<Workflow> & { master_password?: string };
+      const data = req.body as Partial<Workflow> & { master_password?: string; };
       pluginState.log('debug', '保存请求:', JSON.stringify(data).slice(0, 300));
       if (needsMaster(data) && !checkAuth(req, res)) return;
       if (!data.nodes) { res.json({ success: false, error: '缺少节点' }); return; }
@@ -61,24 +61,24 @@ export function registerApiRoutes(router: PluginRouterRegistry): void {
     } catch (e: any) { pluginState.log('error', '保存失败:', e); res.json({ success: false, error: e.message || '保存失败' }); }
   });
 
-  router.post('/delete', (req, res) => {
-    const { id } = req.body as { id?: string };
+  router.postNoAuth('/delete', (req, res) => {
+    const { id } = req.body as { id?: string; };
     res.json(id ? { success: storage.deleteWorkflow(id), message: '已删除' } : { success: false, error: '缺少ID' });
   });
 
-  router.post('/toggle', (req, res) => {
-    const { id } = req.body as { id?: string };
+  router.postNoAuth('/toggle', (req, res) => {
+    const { id } = req.body as { id?: string; };
     res.json(id ? { success: storage.toggleWorkflow(id), message: '状态已更新' } : { success: false, error: '缺少ID' });
   });
 
   // 测试API
-  router.post('/test_api', async (req, res) => {
+  router.postNoAuth('/test_api', async (req, res) => {
     try {
-      const { url, method = 'GET', headers = {}, body } = req.body as { url?: string; method?: string; headers?: Record<string, string>; body?: string };
+      const { url, method = 'GET', headers = {}, body } = req.body as { url?: string; method?: string; headers?: Record<string, string>; body?: string; };
       if (!url) { res.json({ success: false, error: '缺少URL' }); return; }
 
       const hdrs: Record<string, string> = { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' };
-      if (typeof headers === 'string') try { Object.assign(hdrs, JSON.parse(headers)); } catch {}
+      if (typeof headers === 'string') try { Object.assign(hdrs, JSON.parse(headers)); } catch { }
       else if (headers) Object.assign(hdrs, headers);
 
       const r = await fetch(url, { method: method.toUpperCase(), headers: hdrs, body: ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase()) ? body : undefined, signal: AbortSignal.timeout(10000) });
@@ -91,27 +91,29 @@ export function registerApiRoutes(router: PluginRouterRegistry): void {
   });
 
   // AI辅助
-  router.get('/ai_models', (_, res) => res.json({
+  router.getNoAuth('/ai_models', (_, res) => res.json({
     success: true,
     main: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner'],
     backup: ['gemini-3-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash']
   }));
 
-  router.post('/ai_generate', (req, res) => {
-    const { description } = req.body as { description?: string };
+  router.postNoAuth('/ai_generate', (req, res) => {
+    const { description } = req.body as { description?: string; };
     if (!description) { res.json({ success: false, error: '请输入描述' }); return; }
     const keyword = description.split(' ')[0] || '触发';
-    res.json({ success: true, workflow: {
-      nodes: [
-        { id: 'node_1', type: 'trigger', x: 100, y: 100, data: { trigger_type: 'startswith', trigger_content: keyword } },
-        { id: 'node_2', type: 'action', x: 400, y: 100, data: { action_type: 'reply_text', action_value: '收到: {content}' } }
-      ],
-      connections: [{ from_node: 'node_1', from_output: 'output_1', to_node: 'node_2' }]
-    }});
+    res.json({
+      success: true, workflow: {
+        nodes: [
+          { id: 'node_1', type: 'trigger', x: 100, y: 100, data: { trigger_type: 'startswith', trigger_content: keyword } },
+          { id: 'node_2', type: 'action', x: 400, y: 100, data: { action_type: 'reply_text', action_value: '收到: {content}' } }
+        ],
+        connections: [{ from_node: 'node_1', from_output: 'output_1', to_node: 'node_2' }]
+      }
+    });
   });
 
-  router.post('/ai_node', (req, res) => {
-    const { node_type, description } = req.body as { node_type?: string; description?: string };
+  router.postNoAuth('/ai_node', (req, res) => {
+    const { node_type, description } = req.body as { node_type?: string; description?: string; };
     if (!node_type || !description) { res.json({ success: false, error: '参数不完整' }); return; }
     const dataMap: Record<string, Record<string, unknown>> = {
       trigger: { trigger_type: 'startswith', trigger_content: description.split(' ')[0] || '触发' },
@@ -123,16 +125,16 @@ export function registerApiRoutes(router: PluginRouterRegistry): void {
   });
 
   // 定时任务API
-  router.get('/scheduled/list', (_, res) => res.json({ success: true, tasks: scheduler.getAllScheduledTasks() }));
+  router.getNoAuth('/scheduled/list', (_, res) => res.json({ success: true, tasks: scheduler.getAllScheduledTasks() }));
 
-  router.post('/scheduled/add', (req, res) => {
+  router.postNoAuth('/scheduled/add', (req, res) => {
     if (!checkAuth(req, res)) return;
-    const d = req.body as Partial<ScheduledTask> & { master_password?: string };
+    const d = req.body as Partial<ScheduledTask> & { master_password?: string; };
     if (!d.id || !d.workflow_id || !d.target_id || !d.target_type || !d.task_type) { res.json({ success: false, error: '缺少参数' }); return; }
     res.json(scheduler.addScheduledTask({ id: d.id, workflow_id: d.workflow_id, task_type: d.task_type, daily_time: d.daily_time, interval_seconds: d.interval_seconds, weekdays: d.weekdays, target_type: d.target_type, target_id: d.target_id, trigger_user_id: d.trigger_user_id, enabled: d.enabled !== false, description: d.description }));
   });
 
-  router.post('/scheduled/delete', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string }; res.json(id ? scheduler.removeScheduledTask(id) : { success: false, error: '缺少ID' }); });
-  router.post('/scheduled/toggle', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string }; res.json(id ? scheduler.toggleScheduledTask(id) : { success: false, error: '缺少ID' }); });
-  router.post('/scheduled/run', async (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string }; res.json(id ? await scheduler.runScheduledTaskNow(id) : { success: false, error: '缺少ID' }); });
+  router.postNoAuth('/scheduled/delete', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? scheduler.removeScheduledTask(id) : { success: false, error: '缺少ID' }); });
+  router.postNoAuth('/scheduled/toggle', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? scheduler.toggleScheduledTask(id) : { success: false, error: '缺少ID' }); });
+  router.postNoAuth('/scheduled/run', async (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? await scheduler.runScheduledTaskNow(id) : { success: false, error: '缺少ID' }); });
 }
