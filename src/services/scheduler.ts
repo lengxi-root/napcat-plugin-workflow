@@ -78,18 +78,43 @@ async function exec (id: string): Promise<void> {
 // 创建回复函数
 const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
 
+// 解析CQ码
+function parseCQCode (text: string): unknown[] {
+  const segments: unknown[] = [];
+  const regex = /\[CQ:([a-z_]+)(?:,([^\]]+))?\]/gi;
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      const t = text.slice(lastIndex, match.index);
+      if (t) segments.push({ type: 'text', data: { text: t } });
+    }
+    const tp = match[1], ps = match[2] || '', data: Record<string, string> = {};
+    if (ps) {
+      for (const p of ps.split(/,(?=[a-z_]+=)/i)) {
+        const eq = p.indexOf('=');
+        if (eq > 0) data[p.slice(0, eq).trim()] = p.slice(eq + 1).trim().replace(/&#44;/g, ',').replace(/&#91;/g, '[').replace(/&#93;/g, ']').replace(/&amp;/g, '&');
+      }
+    }
+    segments.push({ type: tp, data });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) { const t = text.slice(lastIndex); if (t) segments.push({ type: 'text', data: { text: t } }); }
+  return segments.length ? segments : [{ type: 'text', data: { text } }];
+}
+
 function createReply (type: string, id: string): ReplyFunctions {
   const send = async (msg: unknown[]) => { if (sender) await sender(type, id, msg).catch(() => { }); };
   const call = async (action: string, params: Record<string, unknown>) => caller ? await caller(action, params).catch(() => null) : null;
   const groupCall = async (action: string, params: Record<string, unknown>) => { if (type === 'group') await call(action, { group_id: id, ...params }).catch(() => { }); };
 
   return {
-    reply: async (c) => send([{ type: 'text', data: { text: c } }]),
+    reply: async (c) => send(parseCQCode(c)),
     replyImage: async (url, text) => { const m: unknown[] = [{ type: 'image', data: { file: toFile(url) } }]; if (text) m.push({ type: 'text', data: { text } }); await send(m); },
     replyVoice: async (url) => send([{ type: 'record', data: { file: toFile(url) } }]),
     replyVideo: async (url) => send([{ type: 'video', data: { file: toFile(url) } }]),
-    replyForward: async (msgs) => send(msgs.map(c => ({ type: 'node', data: { user_id: '10000', nickname: '工作流', content: [{ type: 'text', data: { text: c } }] } }))),
-    replyAt: async (c) => send([{ type: 'text', data: { text: c } }]),
+    replyForward: async (msgs) => send(msgs.map(c => ({ type: 'node', data: { user_id: '10000', nickname: '工作流', content: parseCQCode(c) } }))),
+    replyAt: async (c) => send(parseCQCode(c)),
     replyFace: async (fid) => send([{ type: 'face', data: { id: String(fid) } }]),
     replyPoke: async () => { },
     replyJson: async (d) => send([{ type: 'json', data: { data: JSON.stringify(d) } }]),
@@ -102,7 +127,7 @@ function createReply (type: string, id: string): ReplyFunctions {
     groupSetCard: (uid, card) => groupCall('set_group_card', { user_id: uid, card }),
     groupSetAdmin: (uid, enable) => groupCall('set_group_admin', { user_id: uid, enable }),
     groupNotice: (c) => groupCall('_send_group_notice', { content: c }),
-    recallMsg: async (msgId) => { await call('delete_msg', { message_id: msgId }).catch(() => {}); },
+    recallMsg: async (msgId) => { await call('delete_msg', { message_id: msgId }).catch(() => { }); },
     callApi: call,
   };
 }

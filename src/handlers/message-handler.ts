@@ -9,8 +9,60 @@ import { execute } from '../services/executor';
 // 文件转base64
 const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
 
+// 解析CQ码，将文本转换为消息段数组
+function parseCQCode (text: string): unknown[] {
+  const segments: unknown[] = [];
+  const regex = /\[CQ:([a-z_]+)(?:,([^\]]+))?\]/gi;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // 添加CQ码前的纯文本
+    if (match.index > lastIndex) {
+      const plainText = text.slice(lastIndex, match.index);
+      if (plainText) segments.push({ type: 'text', data: { text: plainText } });
+    }
+
+    // 解析CQ码
+    const type = match[1];
+    const paramsStr = match[2] || '';
+    const data: Record<string, string> = {};
+
+    // 解析参数
+    if (paramsStr) {
+      // 处理可能包含逗号的参数值（如url）
+      const params = paramsStr.split(/,(?=[a-z_]+=)/i);
+      for (const param of params) {
+        const eqIndex = param.indexOf('=');
+        if (eqIndex > 0) {
+          const key = param.slice(0, eqIndex).trim();
+          const value = param.slice(eqIndex + 1).trim();
+          // CQ码转义还原
+          data[key] = value
+            .replace(/&#44;/g, ',')
+            .replace(/&#91;/g, '[')
+            .replace(/&#93;/g, ']')
+            .replace(/&amp;/g, '&');
+        }
+      }
+    }
+
+    segments.push({ type, data });
+    lastIndex = regex.lastIndex;
+  }
+
+  // 添加剩余的纯文本
+  if (lastIndex < text.length) {
+    const plainText = text.slice(lastIndex);
+    if (plainText) segments.push({ type: 'text', data: { text: plainText } });
+  }
+
+  // 如果没有CQ码，返回整个文本
+  return segments.length ? segments : [{ type: 'text', data: { text } }];
+}
+
 // 创建回复函数集
-function createReplyFunctions(event: OB11Message, ctx: NapCatPluginContext): ReplyFunctions {
+function createReplyFunctions (event: OB11Message, ctx: NapCatPluginContext): ReplyFunctions {
   const isGroup = event.message_type === 'group';
   const groupId = String(event.group_id), userId = String(event.user_id);
 
@@ -24,19 +76,19 @@ function createReplyFunctions(event: OB11Message, ctx: NapCatPluginContext): Rep
   // 群管理操作
   const groupAction = async (action: string, params: Record<string, unknown>) => {
     if (!isGroup || !event.group_id) return;
-    await ctx.actions.call(action, { group_id: groupId, ...params } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {});
+    await ctx.actions.call(action, { group_id: groupId, ...params } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
   };
 
   return {
-    reply: async (c) => send([{ type: 'text', data: { text: c } }]),
+    reply: async (c) => send(parseCQCode(c)),
     replyImage: async (url, text) => { const msg: unknown[] = [{ type: 'image', data: { file: toFile(url) } }]; if (text) msg.push({ type: 'text', data: { text } }); await send(msg); },
     replyVoice: async (url) => send([{ type: 'record', data: { file: toFile(url) } }]),
     replyVideo: async (url) => send([{ type: 'video', data: { file: toFile(url) } }]),
     replyForward: async (msgs) => {
-      const nodes = msgs.map(c => ({ type: 'node', data: { user_id: String(event.self_id || '10000'), nickname: '工作流', content: [{ type: 'text', data: { text: c } }] } }));
+      const nodes = msgs.map(c => ({ type: 'node', data: { user_id: String(event.self_id || '10000'), nickname: '工作流', content: parseCQCode(c) } }));
       const action = isGroup ? 'send_group_forward_msg' : 'send_private_forward_msg';
       const params = isGroup ? { group_id: groupId, messages: nodes } : { user_id: userId, messages: nodes };
-      await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {});
+      await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { });
     },
     replyAt: async (c) => send([{ type: 'at', data: { qq: userId } }, { type: 'text', data: { text: ' ' + c } }]),
     replyFace: async (id) => send([{ type: 'face', data: { id: String(id) } }]),
@@ -51,13 +103,13 @@ function createReplyFunctions(event: OB11Message, ctx: NapCatPluginContext): Rep
     groupSetCard: (uid, card) => groupAction('set_group_card', { user_id: uid, card }),
     groupSetAdmin: (uid, enable) => groupAction('set_group_admin', { user_id: uid, enable }),
     groupNotice: (c) => groupAction('_send_group_notice', { content: c }),
-    recallMsg: async (msgId) => { await ctx.actions.call('delete_msg', { message_id: msgId } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => {}); },
+    recallMsg: async (msgId) => { await ctx.actions.call('delete_msg', { message_id: msgId } as never, ctx.adapterName, ctx.pluginManager.config).catch(() => { }); },
     callApi: async (action, params) => await ctx.actions.call(action, params as never, ctx.adapterName, ctx.pluginManager.config).catch(() => null),
   };
 }
 
 // 处理消息
-export async function handleMessage(event: OB11Message, ctx: NapCatPluginContext): Promise<boolean> {
+export async function handleMessage (event: OB11Message, ctx: NapCatPluginContext): Promise<boolean> {
   if (!pluginState.config.enableWorkflow) return false;
   const content = (event.raw_message || '').trim();
   if (!content) return false;
@@ -71,8 +123,8 @@ export async function handleMessage(event: OB11Message, ctx: NapCatPluginContext
     message_type: event.message_type as 'group' | 'private',
     raw_message: event.raw_message || '',
     message: event.message as unknown[],
-    message_id: (event as { message_id?: string | number }).message_id,
-    self_id: (event as { self_id?: number }).self_id,
+    message_id: (event as { message_id?: string | number; }).message_id,
+    self_id: (event as { self_id?: number; }).self_id,
     sender: event.sender as MessageEvent['sender'],
   };
 
