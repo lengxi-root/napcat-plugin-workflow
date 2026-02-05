@@ -24,19 +24,18 @@
       --canvas-dot: #e2e8f0;
     }
 
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg-primary: rgba(0, 0, 0, 0.2);
-        --bg-secondary: rgba(0, 0, 0, 0.3);
-        --bg-card: rgba(255, 255, 255, 0.05);
-        --bg-item: rgba(255, 255, 255, 0.05);
-        --text-primary: #f5f5f5;
-        --text-secondary: #a1a1a1;
-        --text-muted: #666;
-        --border-color: rgba(255, 255, 255, 0.1);
-        --accent-light: rgba(88, 101, 242, 0.2);
-        --canvas-dot: #374151;
-      }
+    /* 深色模式 - 使用 class 方式与 napcat 主体联动 */
+    html.dark {
+      --bg-primary: rgba(0, 0, 0, 0.2);
+      --bg-secondary: rgba(0, 0, 0, 0.3);
+      --bg-card: rgba(255, 255, 255, 0.05);
+      --bg-item: rgba(255, 255, 255, 0.05);
+      --text-primary: #f5f5f5;
+      --text-secondary: #a1a1a1;
+      --text-muted: #666;
+      --border-color: rgba(255, 255, 255, 0.1);
+      --accent-light: rgba(88, 101, 242, 0.2);
+      --canvas-dot: #374151;
     }
 
     * {
@@ -488,10 +487,9 @@
       max-width: 700px;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .modal-box {
-        background: #1f1f1f;
-      }
+    /* 模态框深色模式 */
+    html.dark .modal-box {
+      background: #1f1f1f;
     }
 
     .modal-header {
@@ -859,7 +857,8 @@
           <label class="form-label">AI模型</label>
           <select class="form-control" id="aiModel">
             <optgroup label="主接口 (type=1)">
-              <option value="gpt-5" selected>GPT-5 (默认)</option>
+              <option value="auto" selected>🔄 自动切换 (推荐)</option>
+              <option value="gpt-5">GPT-5</option>
               <option value="gpt-5.1">GPT-5.1</option>
               <option value="gpt-5-mini">GPT-5 Mini</option>
               <option value="gpt-5-nano">GPT-5 Nano</option>
@@ -871,11 +870,8 @@
               <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
               <option value="deepseek-chat">DeepSeek Chat</option>
               <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-            </optgroup>
-            <optgroup label="备用接口 (type=2)">
-              <option value="gemini-3-flash">Gemini 3 Flash</option>
               <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
             </optgroup>
           </select>
         </div>
@@ -1095,14 +1091,71 @@
   </div>
 
   <script>
+    // 主题同步：监听父窗口主题变化
+    (function initTheme() {
+      const syncTheme = () => {
+        try {
+          // 从父窗口的 localStorage 读取主题
+          const theme = window.parent?.localStorage?.getItem('theme')?.replace(/"/g, '') || 
+                       localStorage.getItem('theme')?.replace(/"/g, '');
+          // 或者从父窗口的 documentElement class 读取
+          const parentDark = window.parent?.document?.documentElement?.classList?.contains('dark');
+          const isDark = theme === 'dark' || parentDark;
+          
+          document.documentElement.classList.toggle('dark', isDark);
+        } catch (e) {
+          // 跨域访问失败时，使用系统主题
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', prefersDark);
+        }
+      };
+      
+      // 初始同步
+      syncTheme();
+      
+      // 监听 localStorage 变化
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'theme') syncTheme();
+      });
+      
+      // 定期检查父窗口主题（用于手动切换时同步）
+      setInterval(syncTheme, 1000);
+      
+      // 监听系统主题变化
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+    })();
+
     // API 路由在 /plugin/{pluginId}/api/ 下，页面路由在 /plugin/{pluginId}/page/ 下
     const API_BASE = window.location.pathname.replace('/page/', '/api/').replace(/\/[^\/]*$/, '');
     const AI_API = 'https://i.elaina.vin/api/openai/v1/chat/completions';
 
-    // 主接口模型（type=1）和备用接口模型（type=2）
-    const MAIN_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner'];
-    const BACKUP_MODELS = ['gemini-3-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
-    const getApiType = (model) => BACKUP_MODELS.includes(model) ? 2 : 1;
+    // 模型列表（可从 API 动态获取）
+    let ALL_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+    // type=100 表示自动切换模式，type=1 表示普通模式
+    const getApiType = (model) => model === 'auto' ? 100 : 1;
+
+    // 尝试从 API 获取模型列表
+    (async () => {
+      try {
+        const res = await fetch('https://i.elaina.vin/api/openai/models', { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.chat?.length) {
+            ALL_MODELS = data.chat;
+            // 更新下拉框选项
+            const select = document.getElementById('aiModel');
+            if (select) {
+              const currentValue = select.value;
+              const optgroup = select.querySelector('optgroup');
+              if (optgroup) {
+                optgroup.innerHTML = '<option value="auto" selected>🔄 自动切换 (推荐)</option>' + ALL_MODELS.map(m => `<option value="${m}">${m}</option>`).join('');
+                select.value = currentValue || 'auto';
+              }
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    })();
 
     // 获取认证 token
     const urlParams = new URLSearchParams(window.location.search);
@@ -1322,8 +1375,22 @@
     // 显示回复变量帮助
     function showReplyHelp () { openModal('replyHelpModal'); }
 
+    // 深色模式 - 跟随系统/napcat主体
+    function updateTheme () {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
+      // 初始化主题并监听系统主题变化
+      updateTheme();
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
+
       loadConfig();
       initCanvas();
       loadWorkflows();

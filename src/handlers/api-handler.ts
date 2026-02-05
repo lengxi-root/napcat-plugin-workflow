@@ -90,11 +90,11 @@ export function registerApiRoutes (router: PluginRouterRegistry): void {
     } catch (e: any) { res.json({ success: false, error: e.message || '请求失败' }); }
   });
 
-  // AI辅助
+  // AI辅助 - 返回可用模型列表
   router.getNoAuth('/ai_models', (_, res) => res.json({
     success: true,
-    main: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner'],
-    backup: ['gemini-3-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash']
+    models: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+    auto_switch: true  // 支持自动切换
   }));
 
   router.postNoAuth('/ai_generate', (req, res) => {
