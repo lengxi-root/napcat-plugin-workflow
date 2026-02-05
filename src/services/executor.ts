@@ -8,7 +8,10 @@ function checkTrigger (node: WorkflowNode, content: string): string[] | null {
   const { trigger_type: type = 'exact', trigger_content, trigger_value } = node.data as Record<string, string>;
   const val = trigger_content || trigger_value || '';
 
-  if (type === 'scheduled' || type === 'timer' || content === '__scheduled_trigger__') return [];
+  // 定时触发类型不响应普通消息，仅由定时任务系统调用
+  if (type === 'scheduled' || type === 'timer') return null;
+  // 定时任务系统发送的特殊消息标记
+  if (content === '__scheduled_trigger__' || content === '__scheduled__') return [];
   if (!val) return null;
 
   switch (type) {

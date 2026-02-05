@@ -90,12 +90,21 @@ export function registerApiRoutes (router: PluginRouterRegistry): void {
     } catch (e: any) { res.json({ success: false, error: e.message || '请求失败' }); }
   });
 
-  // AI辅助 - 返回可用模型列表
-  router.getNoAuth('/ai_models', (_, res) => res.json({
-    success: true,
-    models: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-    auto_switch: true  // 支持自动切换
-  }));
+  // AI辅助 - 返回可用模型列表（实时从 API 获取）
+  router.getNoAuth('/ai_models', async (_, res) => {
+    const defaultModels = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+    try {
+      const r = await fetch('https://i.elaina.vin/api/openai/models', { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        const data = await r.json() as { success?: boolean; chat?: string[]; };
+        if (data.success && data.chat?.length) {
+          res.json({ success: true, models: data.chat, auto_switch: true });
+          return;
+        }
+      }
+    } catch { /* 获取失败使用默认列表 */ }
+    res.json({ success: true, models: defaultModels, auto_switch: true });
+  });
 
   router.postNoAuth('/ai_generate', (req, res) => {
     const { description } = req.body as { description?: string; };

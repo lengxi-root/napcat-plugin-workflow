@@ -26,16 +26,18 @@
 
     /* 深色模式 - 使用 class 方式与 napcat 主体联动 */
     html.dark {
-      --bg-primary: rgba(0, 0, 0, 0.2);
-      --bg-secondary: rgba(0, 0, 0, 0.3);
-      --bg-card: rgba(255, 255, 255, 0.05);
-      --bg-item: rgba(255, 255, 255, 0.05);
+      --bg-primary: #1e1f22;
+      --bg-secondary: #1a1b1e;
+      --bg-card: #202124;
+      --bg-item: #2a2b2e;
       --text-primary: #f5f5f5;
       --text-secondary: #a1a1a1;
       --text-muted: #666;
-      --border-color: rgba(255, 255, 255, 0.1);
+      --border-color: #333538;
       --accent-light: rgba(88, 101, 242, 0.2);
       --canvas-dot: #374151;
+      background-color: #18191C;
+      color-scheme: dark;
     }
 
     * {
@@ -1091,39 +1093,19 @@
   </div>
 
   <script>
-    // 主题同步：监听父窗口主题变化
-    (function initTheme() {
-      const syncTheme = () => {
-        try {
-          // 从父窗口的 localStorage 读取主题
-          const theme = window.parent?.localStorage?.getItem('theme')?.replace(/"/g, '') || 
-                       localStorage.getItem('theme')?.replace(/"/g, '');
-          // 或者从父窗口的 documentElement class 读取
-          const parentDark = window.parent?.document?.documentElement?.classList?.contains('dark');
-          const isDark = theme === 'dark' || parentDark;
-          
-          document.documentElement.classList.toggle('dark', isDark);
-        } catch (e) {
-          // 跨域访问失败时，使用系统主题
-          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.classList.toggle('dark', prefersDark);
-        }
-      };
-      
-      // 初始同步
-      syncTheme();
-      
-      // 监听 localStorage 变化
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'theme') syncTheme();
-      });
-      
-      // 定期检查父窗口主题（用于手动切换时同步）
-      setInterval(syncTheme, 1000);
-      
-      // 监听系统主题变化
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
-    })();
+    // Dark Mode Logic - Follow System
+    function updateTheme() {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
+    // 初始化主题并监听系统主题变化
+    updateTheme();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
 
     // API 路由在 /plugin/{pluginId}/api/ 下，页面路由在 /plugin/{pluginId}/page/ 下
     const API_BASE = window.location.pathname.replace('/page/', '/api/').replace(/\/[^\/]*$/, '');
@@ -1134,28 +1116,44 @@
     // type=100 表示自动切换模式，type=1 表示普通模式
     const getApiType = (model) => model === 'auto' ? 100 : 1;
 
-    // 尝试从 API 获取模型列表
-    (async () => {
+    // 检查模型是否可用，不可用则自动切换为 auto
+    function validateModel (model) {
+      if (model === 'auto' || ALL_MODELS.includes(model)) return model;
+      showToast(`模型 "${model}" 已不可用，已切换为自动切换模式`, 'warning');
+      return 'auto';
+    }
+
+    // 从 API 获取模型列表
+    async function refreshModelList () {
       try {
         const res = await fetch('https://i.elaina.vin/api/openai/models', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.chat?.length) {
             ALL_MODELS = data.chat;
-            // 更新下拉框选项
-            const select = document.getElementById('aiModel');
-            if (select) {
-              const currentValue = select.value;
-              const optgroup = select.querySelector('optgroup');
-              if (optgroup) {
-                optgroup.innerHTML = '<option value="auto" selected>🔄 自动切换 (推荐)</option>' + ALL_MODELS.map(m => `<option value="${m}">${m}</option>`).join('');
-                select.value = currentValue || 'auto';
-              }
-            }
+            updateModelSelect();
+            return true;
           }
         }
       } catch { /* ignore */ }
-    })();
+      return false;
+    }
+
+    // 更新模型下拉框
+    function updateModelSelect () {
+      const select = document.getElementById('aiModel');
+      if (!select) return;
+      const currentValue = select.value;
+      const optgroup = select.querySelector('optgroup');
+      if (optgroup) {
+        optgroup.innerHTML = '<option value="auto" selected>🔄 自动切换 (推荐)</option>' + ALL_MODELS.map(m => `<option value="${m}">${m}</option>`).join('');
+        // 如果当前选择的模型不可用，自动切换为 auto
+        select.value = validateModel(currentValue);
+      }
+    }
+
+    // 初始化时获取模型列表
+    refreshModelList();
 
     // 获取认证 token
     const urlParams = new URLSearchParams(window.location.search);
@@ -1289,7 +1287,7 @@
 
     // 节点配置
     const NODE_CONFIGS = {
-      trigger: { title: '触发器', icon: 'bi-lightning', color: 'success', inputs: 0, outputs: 1, fields: [{ name: 'trigger_type', label: '触发类型', type: 'select', options: [{ value: 'exact', label: '完全匹配' }, { value: 'startswith', label: '前缀匹配' }, { value: 'contains', label: '包含匹配' }, { value: 'regex', label: '正则匹配' }, { value: 'scheduled', label: '定时触发' }] }, { name: 'trigger_content', label: '触发内容', type: 'text', placeholder: '定时触发可留空' }] },
+      trigger: { title: '触发器', icon: 'bi-lightning', color: 'success', inputs: 0, outputs: 1, isDynamic: true },
       condition: { title: '条件', icon: 'bi-signpost-split', color: 'warning', inputs: 1, outputs: 2, isDynamic: true },
       action: { title: '动作', icon: 'bi-play-circle', color: 'primary', inputs: 1, outputs: 1, isDynamic: true },
       storage: { title: '用户存储', icon: 'bi-database', color: 'danger', inputs: 1, outputs: 1, fields: [{ name: 'storage_type', label: '操作', type: 'select', options: [{ value: 'get', label: '读取' }, { value: 'set', label: '写入' }, { value: 'incr', label: '增加' }, { value: 'decr', label: '减少' }, { value: 'delete', label: '删除' }] }, { name: 'storage_key', label: '键名', type: 'text' }, { name: 'storage_value', label: '值', type: 'text' }, { name: 'default_value', label: '默认值', type: 'text' }, { name: 'result_var', label: '结果变量', type: 'text' }] },
@@ -1299,6 +1297,15 @@
       set_var: { title: '设置变量', icon: 'bi-braces', color: 'info', inputs: 1, outputs: 1, fields: [{ name: 'var_name', label: '变量名', type: 'text' }, { name: 'var_value', label: '变量值', type: 'text' }] },
       list_random: { title: '随机抽取', icon: 'bi-shuffle', color: 'info', inputs: 1, outputs: 1, fields: [{ name: 'list_items', label: '选项(|分隔)', type: 'textarea' }, { name: 'weights', label: '权重', type: 'text' }, { name: 'result_var', label: '结果变量', type: 'text' }] },
       comment: { title: '注释', icon: 'bi-chat-quote', color: 'secondary', inputs: 0, outputs: 0, fields: [{ name: 'comment_text', label: '备注', type: 'textarea' }] }
+    };
+
+    // 触发器类型配置
+    const TRIGGER_TYPES = {
+      exact: { label: '完全匹配', fields: [{ name: 'trigger_content', label: '触发词', type: 'text', placeholder: '消息内容完全等于此文字才触发' }] },
+      startswith: { label: '前缀匹配', fields: [{ name: 'trigger_content', label: '触发前缀', type: 'text', placeholder: '消息以此文字开头才触发' }] },
+      contains: { label: '包含匹配', fields: [{ name: 'trigger_content', label: '触发关键词', type: 'text', placeholder: '消息包含此文字才触发' }] },
+      regex: { label: '正则匹配', fields: [{ name: 'trigger_content', label: '正则表达式', type: 'text', placeholder: '如 ^签到(.*)$ 可用{$1}获取捕获组' }] },
+      scheduled: { label: '定时触发', fields: [{ name: '_hint', label: '说明', type: 'hint', text: '定时触发不响应用户消息，需在「定时任务」中配置执行时间。此工作流仅供定时任务调用。' }] }
     };
 
     // 条件类型配置
@@ -1375,22 +1382,8 @@
     // 显示回复变量帮助
     function showReplyHelp () { openModal('replyHelpModal'); }
 
-    // 深色模式 - 跟随系统/napcat主体
-    function updateTheme () {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
-      // 初始化主题并监听系统主题变化
-      updateTheme();
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
-
       loadConfig();
       initCanvas();
       loadWorkflows();
@@ -1526,6 +1519,8 @@
         renderActionEditor(data);
       } else if (type === 'condition') {
         renderConditionEditor(data);
+      } else if (type === 'trigger') {
+        renderTriggerEditor(data);
       } else {
         let html = '';
         (cfg.fields || []).forEach(f => {
@@ -1551,6 +1546,40 @@
       } else {
         return `<div class="form-group"><label class="form-label">${f.label}${helpBtn}</label><input type="${f.type || 'text'}" class="form-control" data-field="${f.name}" value="${val}" placeholder="${f.placeholder || ''}"></div>`;
       }
+    }
+
+    // 渲染触发器编辑器
+    function renderTriggerEditor (data) {
+      const currentType = data.trigger_type || 'exact';
+      let html = `<div class="form-group"><label class="form-label">触发类型</label><select class="form-control" data-field="trigger_type" onchange="onTriggerTypeChange(this.value)">`;
+      Object.entries(TRIGGER_TYPES).forEach(([k, v]) => {
+        html += `<option value="${k}" ${currentType === k ? 'selected' : ''}>${v.label}</option>`;
+      });
+      html += `</select></div><div id="triggerFieldsContainer"></div>`;
+      html += `<div class="ai-input-wrap"><input type="text" class="form-control" id="aiNodeDesc" placeholder="用AI描述这个触发器..."><button class="btn btn-sm" onclick="aiGenerateNode('trigger')"><i class="bi bi-stars"></i></button></div>`;
+      document.getElementById('nodeModalBody').innerHTML = html;
+      renderTriggerFields(currentType, data);
+    }
+
+    // 触发器类型切换
+    function onTriggerTypeChange (triggerType) {
+      const data = {};
+      document.querySelectorAll('#nodeModalBody [data-field]').forEach(el => {
+        data[el.dataset.field] = el.value;
+      });
+      data.trigger_type = triggerType;
+      renderTriggerFields(triggerType, data);
+    }
+
+    // 渲染触发器专用字段
+    function renderTriggerFields (triggerType, data) {
+      const cfg = TRIGGER_TYPES[triggerType];
+      if (!cfg) return;
+      let html = '';
+      (cfg.fields || []).forEach(f => {
+        html += renderField(f, data[f.name]);
+      });
+      document.getElementById('triggerFieldsContainer').innerHTML = html;
     }
 
     // 渲染条件编辑器
