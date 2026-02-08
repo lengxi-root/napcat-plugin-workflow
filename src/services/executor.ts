@@ -67,7 +67,7 @@ function checkCondition (data: Record<string, unknown>, event: MessageEvent, con
     case 'weekday_in': { const days = val.split('|').map(d => d.trim()); return days.some(d => (dayMap[d] ?? parseInt(d)) === new Date().getDay()); }
     case 'global_equals': { const [k, v] = val.split('='); return String(storage.getGlobalValue(k?.trim() || '', '')) === v?.trim(); }
     case 'global_gt': { const [k, v] = val.split('>'); return Number(storage.getGlobalValue(k?.trim() || '', 0)) > Number(v?.trim()); }
-    case 'expression': try { return Boolean(eval(replaceVars(val, event, content, ctx).replace(/==/g, '===').replace(/!=/g, '!=='))); } catch { return false; }
+    case 'expression': try { return safeEvalExpr(val, event, content, ctx); } catch { return false; }
     default: return true;
   }
 }
@@ -262,6 +262,193 @@ function extractPath (data: Record<string, unknown>, path: string): unknown {
 }
 
 // 替换变量
+// ==================== 安全表达式求值（替代 eval） ====================
+
+type ExprValue = number | string | boolean;
+
+/** 词法 token 类型 */
+const enum Tk { Num, Str, Bool, Id, Op, Lp, Rp, End }
+
+interface Token { type: Tk; value: string | number | boolean; }
+
+/** 词法分析 */
+function tokenize (expr: string): Token[] {
+  const tokens: Token[] = [];
+  let i = 0;
+  while (i < expr.length) {
+    const ch = expr[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    // 数字
+    if (/\d/.test(ch) || (ch === '-' && i + 1 < expr.length && /\d/.test(expr[i + 1]) && (tokens.length === 0 || [Tk.Op, Tk.Lp].includes(tokens[tokens.length - 1].type)))) {
+      let num = '';
+      if (ch === '-') { num = '-'; i++; }
+      while (i < expr.length && /[\d.]/.test(expr[i])) num += expr[i++];
+      tokens.push({ type: Tk.Num, value: parseFloat(num) });
+      continue;
+    }
+    // 字符串
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const q = ch; let s = ''; i++;
+      while (i < expr.length && expr[i] !== q) { if (expr[i] === '\\') i++; s += expr[i++]; }
+      i++; // 跳过结束引号
+      tokens.push({ type: Tk.Str, value: s });
+      continue;
+    }
+    // 括号
+    if (ch === '(') { tokens.push({ type: Tk.Lp, value: '(' }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: Tk.Rp, value: ')' }); i++; continue; }
+    // 双字符运算符
+    const two = expr.slice(i, i + 2);
+    if (['==', '!=', '>=', '<=', '&&', '||'].includes(two)) { tokens.push({ type: Tk.Op, value: two }); i += 2; continue; }
+    if (two === '===' || expr.slice(i, i + 3) === '!==') {
+      const op = expr.slice(i, i + 3); tokens.push({ type: Tk.Op, value: op.slice(0, 2) }); i += 3; continue;
+    }
+    // 单字符运算符
+    if (['+', '-', '*', '/', '%', '>', '<', '!'].includes(ch)) { tokens.push({ type: Tk.Op, value: ch }); i++; continue; }
+    // 标识符 / bool
+    if (/[a-zA-Z_]/.test(ch)) {
+      let id = '';
+      while (i < expr.length && /[a-zA-Z0-9_.]/.test(expr[i])) id += expr[i++];
+      if (id === 'true') tokens.push({ type: Tk.Bool, value: true });
+      else if (id === 'false') tokens.push({ type: Tk.Bool, value: false });
+      else tokens.push({ type: Tk.Id, value: id });
+      continue;
+    }
+    i++; // 跳过未知字符
+  }
+  tokens.push({ type: Tk.End, value: '' });
+  return tokens;
+}
+
+/** 递归下降解析器（支持 || && == != > < >= <= + - * / % ! 括号） */
+class ExprParser {
+  private tokens: Token[];
+  private pos = 0;
+  private vars: Record<string, ExprValue>;
+
+  constructor (tokens: Token[], vars: Record<string, ExprValue>) {
+    this.tokens = tokens;
+    this.vars = vars;
+  }
+
+  private peek (): Token { return this.tokens[this.pos] || { type: Tk.End, value: '' }; }
+  private next (): Token { return this.tokens[this.pos++] || { type: Tk.End, value: '' }; }
+
+  parse (): ExprValue {
+    const result = this.or();
+    return result;
+  }
+
+  private or (): ExprValue {
+    let left = this.and();
+    while (this.peek().value === '||') { this.next(); left = Boolean(left) || Boolean(this.and()); }
+    return left;
+  }
+
+  private and (): ExprValue {
+    let left = this.comparison();
+    while (this.peek().value === '&&') { this.next(); left = Boolean(left) && Boolean(this.comparison()); }
+    return left;
+  }
+
+  private comparison (): ExprValue {
+    let left = this.addSub();
+    const ops = ['==', '!=', '>', '<', '>=', '<='];
+    while (ops.includes(this.peek().value as string)) {
+      const op = this.next().value as string;
+      const right = this.addSub();
+      switch (op) {
+        case '==': left = left == right; break;
+        case '!=': left = left != right; break;
+        case '>': left = Number(left) > Number(right); break;
+        case '<': left = Number(left) < Number(right); break;
+        case '>=': left = Number(left) >= Number(right); break;
+        case '<=': left = Number(left) <= Number(right); break;
+      }
+    }
+    return left;
+  }
+
+  private addSub (): ExprValue {
+    let left = this.mulDiv();
+    while (this.peek().value === '+' || this.peek().value === '-') {
+      const op = this.next().value;
+      const right = this.mulDiv();
+      if (op === '+') {
+        left = typeof left === 'string' || typeof right === 'string' ? String(left) + String(right) : Number(left) + Number(right);
+      } else {
+        left = Number(left) - Number(right);
+      }
+    }
+    return left;
+  }
+
+  private mulDiv (): ExprValue {
+    let left = this.unary();
+    while (this.peek().value === '*' || this.peek().value === '/' || this.peek().value === '%') {
+      const op = this.next().value;
+      const right = this.unary();
+      if (op === '*') left = Number(left) * Number(right);
+      else if (op === '/') left = Number(right) !== 0 ? Number(left) / Number(right) : 0;
+      else left = Number(right) !== 0 ? Number(left) % Number(right) : 0;
+    }
+    return left;
+  }
+
+  private unary (): ExprValue {
+    if (this.peek().value === '!') { this.next(); return !this.unary(); }
+    if (this.peek().value === '-' && this.peek().type === Tk.Op) { this.next(); return -Number(this.primary()); }
+    return this.primary();
+  }
+
+  private primary (): ExprValue {
+    const t = this.peek();
+    if (t.type === Tk.Num) { this.next(); return t.value as number; }
+    if (t.type === Tk.Str) { this.next(); return t.value as string; }
+    if (t.type === Tk.Bool) { this.next(); return t.value as boolean; }
+    if (t.type === Tk.Id) {
+      this.next();
+      const name = t.value as string;
+      // 内置函数
+      if (name === 'len' && this.peek().type === Tk.Lp) { this.next(); const v = this.or(); this.next(); return String(v).length; }
+      if (name === 'num' && this.peek().type === Tk.Lp) { this.next(); const v = this.or(); this.next(); return Number(v) || 0; }
+      if (name === 'str' && this.peek().type === Tk.Lp) { this.next(); const v = this.or(); this.next(); return String(v); }
+      if (name === 'abs' && this.peek().type === Tk.Lp) { this.next(); const v = this.or(); this.next(); return Math.abs(Number(v)); }
+      // 变量查找
+      return this.vars[name] ?? 0;
+    }
+    if (t.type === Tk.Lp) { this.next(); const v = this.or(); this.next(); return v; }
+    this.next();
+    return 0;
+  }
+}
+
+/** 安全表达式求值（替代 eval） */
+function safeEvalExpr (rawExpr: string, event: MessageEvent, content: string, ctx: ExecutionContext): boolean {
+  // 先做变量替换
+  const expr = replaceVars(rawExpr, event, content, ctx);
+  // 构建变量表（供标识符查找）
+  const vars: Record<string, ExprValue> = {
+    user_id: event.user_id,
+    group_id: event.group_id || '',
+    content,
+    message: content,
+    hour: new Date().getHours(),
+    minute: new Date().getMinutes(),
+    weekday: new Date().getDay(),
+    timestamp: Math.floor(Date.now() / 1000),
+  };
+  // 注入 ctx 变量
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'regex_groups' && k !== 'api_binary') {
+      vars[k] = typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string' ? v : String(v ?? '');
+    }
+  }
+  const tokens = tokenize(expr);
+  const parser = new ExprParser(tokens, vars);
+  return Boolean(parser.parse());
+}
+
 function replaceVars (text: string, event: MessageEvent, content: string, ctx: ExecutionContext): string {
   if (!text || !text.includes('{')) return text;
   const n = new Date(), d = n.toISOString().split('T')[0];

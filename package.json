@@ -1,7 +1,7 @@
 {
   "name": "napcat-plugin-workflow",
   "plugin": "workflow",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "type": "module",
   "main": "index.mjs",
   "description": "AI可视化工作流插件 - 创建自动化流程与定时任务",
