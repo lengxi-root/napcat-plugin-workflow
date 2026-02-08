@@ -75,33 +75,8 @@ async function exec (id: string): Promise<void> {
   } catch (e) { pluginState.log('error', `定时任务 [${id}] 执行失败:`, e); }
 }
 
-// 创建回复函数
-const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
-
-// 解析CQ码
-function parseCQCode (text: string): unknown[] {
-  const segments: unknown[] = [];
-  const regex = /\[CQ:([a-z_]+)(?:,([^\]]+))?\]/gi;
-  let lastIndex = 0;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      const t = text.slice(lastIndex, match.index);
-      if (t) segments.push({ type: 'text', data: { text: t } });
-    }
-    const tp = match[1], ps = match[2] || '', data: Record<string, string> = {};
-    if (ps) {
-      for (const p of ps.split(/,(?=[a-z_]+=)/i)) {
-        const eq = p.indexOf('=');
-        if (eq > 0) data[p.slice(0, eq).trim()] = p.slice(eq + 1).trim().replace(/&#44;/g, ',').replace(/&#91;/g, '[').replace(/&#93;/g, ']').replace(/&amp;/g, '&');
-      }
-    }
-    segments.push({ type: tp, data });
-    lastIndex = regex.lastIndex;
-  }
-  if (lastIndex < text.length) { const t = text.slice(lastIndex); if (t) segments.push({ type: 'text', data: { text: t } }); }
-  return segments.length ? segments : [{ type: 'text', data: { text } }];
-}
+// 复用共享CQ解析工具
+import { parseCQCode, toFile } from '../utils/cq-parser';
 
 function createReply (type: string, id: string): ReplyFunctions {
   const send = async (msg: unknown[]) => { if (sender) await sender(type, id, msg).catch(() => { }); };

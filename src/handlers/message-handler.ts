@@ -5,61 +5,7 @@ import type { MessageEvent, ReplyFunctions } from '../types';
 import { pluginState } from '../core/state';
 import { loadWorkflows } from '../services/storage';
 import { execute } from '../services/executor';
-
-// 文件转base64
-const toFile = (d: string | Buffer) => typeof d === 'string' ? d : `base64://${d.toString('base64')}`;
-
-// 解析CQ码，将文本转换为消息段数组
-function parseCQCode (text: string): unknown[] {
-  const segments: unknown[] = [];
-  const regex = /\[CQ:([a-z_]+)(?:,([^\]]+))?\]/gi;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(text)) !== null) {
-    // 添加CQ码前的纯文本
-    if (match.index > lastIndex) {
-      const plainText = text.slice(lastIndex, match.index);
-      if (plainText) segments.push({ type: 'text', data: { text: plainText } });
-    }
-
-    // 解析CQ码
-    const type = match[1];
-    const paramsStr = match[2] || '';
-    const data: Record<string, string> = {};
-
-    // 解析参数
-    if (paramsStr) {
-      // 处理可能包含逗号的参数值（如url）
-      const params = paramsStr.split(/,(?=[a-z_]+=)/i);
-      for (const param of params) {
-        const eqIndex = param.indexOf('=');
-        if (eqIndex > 0) {
-          const key = param.slice(0, eqIndex).trim();
-          const value = param.slice(eqIndex + 1).trim();
-          // CQ码转义还原
-          data[key] = value
-            .replace(/&#44;/g, ',')
-            .replace(/&#91;/g, '[')
-            .replace(/&#93;/g, ']')
-            .replace(/&amp;/g, '&');
-        }
-      }
-    }
-
-    segments.push({ type, data });
-    lastIndex = regex.lastIndex;
-  }
-
-  // 添加剩余的纯文本
-  if (lastIndex < text.length) {
-    const plainText = text.slice(lastIndex);
-    if (plainText) segments.push({ type: 'text', data: { text: plainText } });
-  }
-
-  // 如果没有CQ码，返回整个文本
-  return segments.length ? segments : [{ type: 'text', data: { text } }];
-}
+import { parseCQCode, toFile } from '../utils/cq-parser';
 
 // 创建回复函数集
 function createReplyFunctions (event: OB11Message, ctx: NapCatPluginContext): ReplyFunctions {

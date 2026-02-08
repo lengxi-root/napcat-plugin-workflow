@@ -3,14 +3,30 @@ import type { Workflow, WorkflowNode, WorkflowConnection, ExecutionContext, Mess
 import { pluginState } from '../core/state';
 import * as storage from './storage';
 
+// 正则缓存（避免每次触发检查都重新编译）
+const regexCache = new Map<string, RegExp>();
+const REGEX_CACHE_MAX = 200;
+
+function getCachedRegex (pattern: string): RegExp | null {
+  let re = regexCache.get(pattern);
+  if (re) return re;
+  try {
+    re = new RegExp(pattern);
+    if (regexCache.size >= REGEX_CACHE_MAX) {
+      const first = regexCache.keys().next().value;
+      if (first !== undefined) regexCache.delete(first);
+    }
+    regexCache.set(pattern, re);
+    return re;
+  } catch { return null; }
+}
+
 // 检查触发条件
 function checkTrigger (node: WorkflowNode, content: string): string[] | null {
   const { trigger_type: type = 'exact', trigger_content, trigger_value } = node.data as Record<string, string>;
   const val = trigger_content || trigger_value || '';
 
-  // 定时触发类型不响应普通消息，仅由定时任务系统调用
   if (type === 'scheduled' || type === 'timer') return null;
-  // 定时任务系统发送的特殊消息标记
   if (content === '__scheduled_trigger__' || content === '__scheduled__') return [];
   if (!val) return null;
 
@@ -18,7 +34,7 @@ function checkTrigger (node: WorkflowNode, content: string): string[] | null {
     case 'exact': return content === val ? [] : null;
     case 'contains': return content.includes(val) ? [] : null;
     case 'startswith': return content.startsWith(val) ? [] : null;
-    case 'regex': try { const m = content.match(new RegExp(val)); return m ? Array.from(m).slice(1) : null; } catch { return null; }
+    case 'regex': { const re = getCachedRegex(val); if (!re) return null; const m = content.match(re); return m ? Array.from(m).slice(1) : null; }
     case 'any': return val.split('|').map(k => k.trim()).filter(Boolean).some(kw => content.includes(kw)) ? [] : null;
     default: return null;
   }
@@ -35,7 +51,7 @@ function checkCondition (data: Record<string, unknown>, event: MessageEvent, con
   switch (type) {
     case 'contains': return content.includes(val);
     case 'equals': return content === val;
-    case 'regex': try { return new RegExp(val).test(content); } catch { return false; }
+    case 'regex': { const re = getCachedRegex(val); return re ? re.test(content) : false; }
     case 'random': return Math.random() * 100 < parseFloat(val);
     case 'user_id': return uid === val;
     case 'group_id': return event.group_id === val;
