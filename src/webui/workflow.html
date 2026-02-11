@@ -7,6 +7,173 @@
   <title>可视化工作流</title>
   <link href="../files/static/assets/bootstrap-icons.css" rel="stylesheet">
   <style>
+    /* fallback: inline bootstrap-icons font + used icons */
+    @font-face {
+      font-display: block;
+      font-family: "bootstrap-icons";
+      src: url("../files/static/assets/fonts/bootstrap-icons.woff2") format("woff2"), url("../files/static/assets/fonts/bootstrap-icons.woff") format("woff")
+    }
+
+    .bi::before,
+    [class^="bi-"]::before,
+    [class*=" bi-"]::before {
+      display: inline-block;
+      font-family: bootstrap-icons !important;
+      font-style: normal;
+      font-weight: normal !important;
+      font-variant: normal;
+      text-transform: none;
+      line-height: 1;
+      vertical-align: -.125em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale
+    }
+
+    .bi-arrow-right::before {
+      content: "\f138"
+    }
+
+    .bi-at::before {
+      content: "\f152"
+    }
+
+    .bi-braces::before {
+      content: "\f1c9"
+    }
+
+    .bi-calendar::before {
+      content: "\f1f6"
+    }
+
+    .bi-chat-dots::before {
+      content: "\f24a"
+    }
+
+    .bi-chat-quote::before {
+      content: "\f255"
+    }
+
+    .bi-check-lg::before {
+      content: "\f633"
+    }
+
+    .bi-chevron-down::before {
+      content: "\f282"
+    }
+
+    .bi-chevron-up::before {
+      content: "\f286"
+    }
+
+    .bi-clock::before {
+      content: "\f293"
+    }
+
+    .bi-database::before {
+      content: "\f8c4"
+    }
+
+    .bi-diagram-3::before {
+      content: "\f2ee"
+    }
+
+    .bi-download::before {
+      content: "\f30a"
+    }
+
+    .bi-eye::before {
+      content: "\f341"
+    }
+
+    .bi-eye-slash::before {
+      content: "\f340"
+    }
+
+    .bi-gear::before {
+      content: "\f3e5"
+    }
+
+    .bi-globe::before {
+      content: "\f3ee"
+    }
+
+    .bi-grip-vertical::before {
+      content: "\f3fe"
+    }
+
+    .bi-info-circle::before {
+      content: "\f431"
+    }
+
+    .bi-lightning::before {
+      content: "\f46f"
+    }
+
+    .bi-pencil::before {
+      content: "\f4cb"
+    }
+
+    .bi-pencil-square::before {
+      content: "\f4ca"
+    }
+
+    .bi-person::before {
+      content: "\f4e1"
+    }
+
+    .bi-play-circle::before {
+      content: "\f4f3"
+    }
+
+    .bi-plus::before {
+      content: "\f4fe"
+    }
+
+    .bi-plus-lg::before {
+      content: "\f64d"
+    }
+
+    .bi-question-circle::before {
+      content: "\f505"
+    }
+
+    .bi-shield-lock::before {
+      content: "\f538"
+    }
+
+    .bi-shuffle::before {
+      content: "\f544"
+    }
+
+    .bi-signpost-split::before {
+      content: "\f549"
+    }
+
+    .bi-stars::before {
+      content: "\f589"
+    }
+
+    .bi-three-dots-vertical::before {
+      content: "\f5d3"
+    }
+
+    .bi-trash::before {
+      content: "\f5de"
+    }
+
+    .bi-trophy::before {
+      content: "\f5e7"
+    }
+
+    .bi-upload::before {
+      content: "\f603"
+    }
+
+    .bi-x-lg::before {
+      content: "\f659"
+    }
+  </style>
+  <style>
     :root {
       --bg-primary: rgba(255, 255, 255, 0.4);
       --bg-secondary: rgba(255, 255, 255, 0.6);
@@ -1094,7 +1261,7 @@
 
   <script>
     // Dark Mode Logic - Follow System
-    function updateTheme() {
+    function updateTheme () {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (isDark) {
         document.documentElement.classList.add('dark');
