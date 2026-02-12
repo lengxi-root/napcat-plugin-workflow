@@ -5,6 +5,8 @@ import { MASTER_ONLY_TRIGGERS } from '../types';
 import { pluginState } from '../core/state';
 import * as storage from '../services/storage';
 import * as scheduler from '../services/scheduler';
+import fs from 'fs';
+import path from 'path';
 
 // 生成唯一ID
 const genId = () => 'wf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -146,4 +148,20 @@ export function registerApiRoutes (router: PluginRouterRegistry): void {
   router.postNoAuth('/scheduled/delete', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? scheduler.removeScheduledTask(id) : { success: false, error: '缺少ID' }); });
   router.postNoAuth('/scheduled/toggle', (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? scheduler.toggleScheduledTask(id) : { success: false, error: '缺少ID' }); });
   router.postNoAuth('/scheduled/run', async (req, res) => { if (!checkAuth(req, res)) return; const { id } = req.body as { id?: string; }; res.json(id ? await scheduler.runScheduledTaskNow(id) : { success: false, error: '缺少ID' }); });
+
+  // 字体文件（bootstrap-icons）
+  for (const [file, mime] of [['bootstrap-icons.woff2', 'font/woff2'], ['bootstrap-icons.woff', 'font/woff']] as const) {
+    router.getNoAuth(`/fonts/${file}`, (_, res) => {
+      try {
+        const fp = path.join(pluginState.pluginPath, 'webui', 'assets', 'fonts', file);
+        if (fs.existsSync(fp)) {
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Cache-Control', 'public, max-age=604800');
+          (res.raw as any).sendFile(fp);
+        } else {
+          res.status(404).json({ error: 'Font not found' });
+        }
+      } catch { res.status(500).json({ error: 'Failed to serve font' }); }
+    });
+  }
 }

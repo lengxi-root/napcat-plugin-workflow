@@ -15,21 +15,22 @@ export const pluginState = {
   adapterName: '',
   networkConfig: null as unknown,
   dataPath: '',
+  pluginPath: '',
   initialized: false,
   botId: '' as string,  // 机器人QQ号
 
   // 日志
-  log(level: 'info' | 'debug' | 'warn' | 'error', ...args: unknown[]): void {
+  log (level: 'info' | 'debug' | 'warn' | 'error', ...args: unknown[]): void {
     if (!this.logger || (level === 'debug' && !this.config.debug)) return;
     this.logger[level]?.(...args);
   },
 
   // 主人权限验证
-  requireMasterAuth(): boolean { return !!this.config.masterPassword; },
-  verifyMaster(password: string): boolean { return !this.config.masterPassword || password === this.config.masterPassword; },
+  requireMasterAuth (): boolean { return !!this.config.masterPassword; },
+  verifyMaster (password: string): boolean { return !this.config.masterPassword || password === this.config.masterPassword; },
 
   // 获取请求附加信息（用于 API 调用）
-  getRequestMeta(): { bot_id: string; user_id: string } {
+  getRequestMeta (): { bot_id: string; user_id: string; } {
     return { bot_id: this.botId, user_id: this.botId };
   },
 };

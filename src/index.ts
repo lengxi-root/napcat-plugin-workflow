@@ -16,7 +16,7 @@ export let plugin_config_ui: PluginConfigSchema = [];
 const plugin_init: PluginModule['plugin_init'] = async (ctx: NapCatPluginContext) => {
   Object.assign(pluginState, {
     logger: ctx.logger, actions: ctx.actions, adapterName: ctx.adapterName,
-    networkConfig: ctx.pluginManager.config, dataPath: ctx.dataPath
+    networkConfig: ctx.pluginManager.config, dataPath: ctx.dataPath, pluginPath: ctx.pluginPath
   });
   pluginState.log('info', '工作流插件初始化中...');
 
@@ -55,7 +55,7 @@ const plugin_init: PluginModule['plugin_init'] = async (ctx: NapCatPluginContext
 
   // 获取机器人QQ号
   try {
-    const loginInfo = await ctx.actions.call('get_login_info', {}, ctx.adapterName, ctx.pluginManager.config) as { user_id?: number | string } | undefined;
+    const loginInfo = await ctx.actions.call('get_login_info', {}, ctx.adapterName, ctx.pluginManager.config) as { user_id?: number | string; } | undefined;
     pluginState.botId = loginInfo?.user_id ? String(loginInfo.user_id) : '';
   } catch { /* ignore */ }
 
@@ -78,8 +78,8 @@ export const plugin_set_config = async (ctx: NapCatPluginContext, config: Plugin
 };
 
 // 配置控制器
-const plugin_config_controller = (): (() => void) | void => () => {};
-const plugin_on_config_change = (): void => {};
+const plugin_config_controller = (): (() => void) | void => () => { };
+const plugin_on_config_change = (): void => { };
 
 // 清理和消息处理
 const plugin_cleanup: PluginModule['plugin_cleanup'] = async () => { stopWorkflowWatcher(); stopScheduler(); };
