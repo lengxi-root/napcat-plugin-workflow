@@ -6,6 +6,7 @@ export interface PluginConfig {
   debug: boolean;
   masters: string[];
   masterPassword: string;
+  ytApiKey: string;  // api.ytea.top 第三方密钥，填写后 AI 功能直连 api.ytea.top
   [key: string]: unknown;
 }
 
@@ -23,7 +24,7 @@ export interface WorkflowNode { id: string; type: string; x: number; y: number; 
 export interface WorkflowConnection { from_node: string; from_output: string; to_node: string; }
 
 // 执行上下文
-export interface ExecutionContext { regex_groups: string[]; [key: string]: unknown; }
+export interface ExecutionContext { regex_groups: string[];[key: string]: unknown; }
 
 // 消息事件
 export interface MessageEvent {

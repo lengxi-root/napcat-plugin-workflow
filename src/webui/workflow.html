@@ -1298,7 +1298,14 @@
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
 
     const API_BASE = window.location.pathname.replace('/page/', '/api/').replace(/\/[^\/]*$/, '');
-    const AI_API = 'https://i.elaina.vin/api/openai/v1/chat/completions';
+    // 构建 AI 请求 - 统一通过后端代理（密钥和接口选择由后端处理）
+    function buildAiRequest (model, messages) {
+      return {
+        url: API_BASE + '/ai_chat',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages })
+      };
+    }
 
     let ALL_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'];
     const getApiType = (model) => model === 'auto' ? 100 : 1;
@@ -1311,10 +1318,10 @@
 
     async function refreshModelList () {
       try {
-        const res = await fetch('https://i.elaina.vin/api/openai/models', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(API_BASE + '/ai_models', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.chat?.length) { ALL_MODELS = data.chat; updateModelSelect(); return true; }
+          if (data.success && data.models?.length) { ALL_MODELS = data.models; updateModelSelect(); return true; }
         }
       } catch { }
       return false;
@@ -1765,7 +1772,8 @@
       else { fields = cfg?.fields?.map(f => f.name).join(', ') || ''; }
       const prompt = `生成${cfg?.title || type}节点的JSON配置。可用字段: ${fields}。需求: ${desc}。只返回JSON对象，如 {"trigger_type":"exact","trigger_content":"签到"}`;
       try {
-        const res = await fetch(AI_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'gpt-5', type: 1, bot_id: 'webui', user_id: 'webui', messages: [{ role: 'user', content: prompt }] }) });
+        const req = buildAiRequest('gpt-5', [{ role: 'user', content: prompt }]);
+        const res = await fetch(req.url, { method: 'POST', headers: req.headers, body: req.body });
         const data = await res.json();
         const content = data.choices?.[0]?.message?.content || '';
         const match = content.match(/\{[\s\S]*\}/);
@@ -1917,7 +1925,8 @@
       btn.innerHTML = `${svgIcon('hourglass-split')} 生成中...`;
       document.getElementById('aiResult').style.display = 'none';
       try {
-        const res = await fetch(AI_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model, type: getApiType(model), bot_id: 'webui', user_id: 'webui', messages: [{ role: 'system', content: WORKFLOW_SYSTEM_PROMPT }, { role: 'user', content: desc }] }) });
+        const req = buildAiRequest(model, [{ role: 'system', content: WORKFLOW_SYSTEM_PROMPT }, { role: 'user', content: desc }]);
+        const res = await fetch(req.url, { method: 'POST', headers: req.headers, body: req.body });
         const data = await res.json();
         const content = data.choices?.[0]?.message?.content || '';
         const match = content.match(/\{[\s\S]*\}/);

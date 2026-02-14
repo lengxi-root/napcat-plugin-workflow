@@ -4,7 +4,7 @@ import type { PluginConfig } from '../types';
 
 // 默认配置
 export const DEFAULT_CONFIG: PluginConfig = {
-  enableWorkflow: true, debug: false, masters: [], masterPassword: ''
+  enableWorkflow: true, debug: false, masters: [], masterPassword: '', ytApiKey: ''
 };
 
 // 插件状态
@@ -32,5 +32,13 @@ export const pluginState = {
   // 获取请求附加信息（用于 API 调用）
   getRequestMeta (): { bot_id: string; user_id: string; } {
     return { bot_id: this.botId, user_id: this.botId };
+  },
+
+  // 获取 AI API 配置（根据是否有第三方密钥决定）
+  getAiConfig (): { url: string; key: string; useYtea: boolean; } {
+    if (this.config.ytApiKey) {
+      return { url: 'https://api.ytea.top/v1/chat/completions', key: this.config.ytApiKey, useYtea: true };
+    }
+    return { url: 'https://i.elaina.vin/api/openai/v1/chat/completions', key: '', useYtea: false };
   },
 };

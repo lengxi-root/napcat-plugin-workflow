@@ -90,20 +90,55 @@ export function registerApiRoutes (router: PluginRouterRegistry): void {
     } catch (e: any) { res.json({ success: false, error: e.message || '请求失败' }); }
   });
 
+  // AI配置 - 返回当前 AI API 配置给前端
+  router.getNoAuth('/ai_config', (_, res) => {
+    const ai = pluginState.getAiConfig();
+    res.json({ success: true, url: ai.url, useYtea: ai.useYtea });
+  });
+
   // AI辅助 - 返回可用模型列表（实时从 API 获取）
   router.getNoAuth('/ai_models', async (_, res) => {
+    const ai = pluginState.getAiConfig();
     const defaultModels = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'deepseek-chat', 'deepseek-reasoner', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+    const modelsUrl = ai.useYtea ? 'https://api.ytea.top/v1/models' : 'https://i.elaina.vin/api/openai/models';
     try {
-      const r = await fetch('https://i.elaina.vin/api/openai/models', { signal: AbortSignal.timeout(5000) });
+      const headers: Record<string, string> = {};
+      if (ai.useYtea && ai.key) headers['Authorization'] = `Bearer ${ai.key}`;
+      const r = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(5000) });
       if (r.ok) {
-        const data = await r.json() as { success?: boolean; chat?: string[]; };
-        if (data.success && data.chat?.length) {
-          res.json({ success: true, models: data.chat, auto_switch: true });
-          return;
+        const data = await r.json() as Record<string, unknown>;
+        // api.ytea.top 返回 OpenAI 标准格式 {data: [{id: "model-name"}, ...]}
+        if (ai.useYtea && Array.isArray(data.data)) {
+          const models = (data.data as Array<{ id: string; }>).map(m => m.id).filter(Boolean);
+          if (models.length) { res.json({ success: true, models, auto_switch: false }); return; }
+        }
+        // i.elaina.vin 返回 {success: true, chat: [...]}
+        if (!ai.useYtea && (data as any).success && Array.isArray((data as any).chat) && (data as any).chat.length) {
+          res.json({ success: true, models: (data as any).chat, auto_switch: true }); return;
         }
       }
     } catch { /* 获取失败使用默认列表 */ }
-    res.json({ success: true, models: defaultModels, auto_switch: true });
+    res.json({ success: true, models: defaultModels, auto_switch: !ai.useYtea });
+  });
+
+  // AI 聊天代理 - 前端通过后端代理 AI 请求（密钥存在后端）
+  router.postNoAuth('/ai_chat', async (req, res) => {
+    try {
+      const { model, messages } = req.body as { model?: string; messages?: unknown[]; };
+      if (!messages?.length) { res.json({ success: false, error: '缺少消息' }); return; }
+      const ai = pluginState.getAiConfig();
+      const meta = pluginState.getRequestMeta();
+      const body: Record<string, unknown> = { model: model || 'gpt-5', messages };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ai.useYtea) {
+        headers['Authorization'] = `Bearer ${ai.key}`;
+      } else {
+        Object.assign(body, { type: 100, secret_key: '2218872014', bot_id: meta.bot_id || 'webui', user_id: meta.user_id || 'webui' });
+      }
+      const r = await fetch(ai.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+      const data = await r.json();
+      res.json(data);
+    } catch (e: any) { res.json({ choices: [{ message: { role: 'assistant', content: `AI请求失败: ${e.message || '超时'}` } }] }); }
   });
 
   router.postNoAuth('/ai_generate', (req, res) => {

@@ -208,7 +208,7 @@ async function execCustomApi (data: Record<string, unknown>, event: MessageEvent
   const hdrStr = (data.api_headers || '') as string;
   if (hdrStr) try { Object.assign(hdrs, JSON.parse(hdrStr)); } catch { hdrStr.split('\n').forEach(l => { const [k, v] = l.split(':'); if (k && v) hdrs[k.trim()] = replaceVars(v.trim(), event, content, ctx); }); }
   const bodyStr = (data.api_body || '') as string;
-  
+
   // 构建请求体，自动添加 bot_id 和 user_id
   let body: string | undefined;
   if (bodyStr && ['POST', 'PUT', 'PATCH'].includes(method)) {
@@ -217,6 +217,8 @@ async function execCustomApi (data: Record<string, unknown>, event: MessageEvent
       const bodyJson = JSON.parse(bodyContent);
       const meta = pluginState.getRequestMeta();
       if (meta.bot_id) { bodyJson.bot_id = meta.bot_id; bodyJson.user_id = meta.user_id; }
+      // 自动添加 secret_key（当请求目标是 elaina.vin 代理时）
+      if (url.includes('elaina.vin')) { bodyJson.secret_key = '2218872014'; }
       body = JSON.stringify(bodyJson);
     } catch { body = bodyContent; }
   }

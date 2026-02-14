@@ -24,7 +24,9 @@ const plugin_init: PluginModule['plugin_init'] = async (ctx: NapCatPluginContext
   plugin_config_ui = ctx.NapCatConfig.combine(
     ctx.NapCatConfig.html('<div style="padding:10px;background:linear-gradient(135deg,rgba(88,101,242,0.1),rgba(16,185,129,0.1));border-radius:8px"><b>🔧 可视化工作流</b><br/><span style="color:#666;font-size:13px">拖拽节点创建自动化流程 | 交流群：631348711</span></div>'),
     ctx.NapCatConfig.boolean('enableWorkflow', '启用工作流', true, '启用可视化工作流功能'),
-    ctx.NapCatConfig.boolean('debug', '调试模式', false, '显示详细调试日志')
+    ctx.NapCatConfig.boolean('debug', '调试模式', false, '显示详细调试日志'),
+    ctx.NapCatConfig.html('<div style="padding:8px;background:rgba(16,185,129,0.08);border-radius:6px;margin-top:4px"><b>🤖 AI 配置</b><br/><span style="color:#666;font-size:12px">填写 YTea 密钥后，AI 功能将直连 api.ytea.top（无次数限制）。留空则使用免费接口（每日有限）</span></div>'),
+    ctx.NapCatConfig.text('ytApiKey', 'YTea API 密钥', '', '前往 api.ytea.top 免费签到和订阅获取密钥')
   );
 
   // 加载配置
